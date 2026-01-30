@@ -32,7 +32,7 @@ const NOISE_MOVEMENT = getParam(
   'noiseMovement',
   'randomDirection',
   'string',
-  'Noise dot movement type',
+  'Noise dot movement type (randomDirection, randomWalk, randomTeleport)',
 ) as NoiseMovement;
 
 const KEY_LEFT = getParam('key_left', 'arrowleft', 'string', 'Key for leftward response');
