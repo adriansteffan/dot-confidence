@@ -1,44 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react';
-import { ExperimentRunner, BaseComponentProps, ExperimentConfig } from '@adriansteffan/reactive';
+import { ExperimentRunner, ExperimentConfig } from '@adriansteffan/reactive';
 import { RandomDotKinematogram, RDKProps } from './RandomDotKinematogram';
+import { BDMReward } from './BDMReward';
 
 
 const config: ExperimentConfig = { showProgressBar: false};
 
-const CustomTrial = ({ next, maxCount }: BaseComponentProps & { maxCount: number }) => {
-  const [count, setCount] = useState(0);
+// Shared background color for consistent styling
+const BG_COLOR = '#21294b';
+// CSS class for neobrutalist grid background (defined in index.css)
+const BG_CLASS = 'neo-grid-bg';
 
-  return (
-    <>
-      <h1 className='text-4xl'>
-        <strong>Custom Component</strong>
-      </h1>
-      <br />
-      This is a custom component component. Click the button {maxCount} times to progress
-      <br />
-      <button
-        onClick={() => {
-          setCount(count + 1);
-          if (count + 1 === maxCount) {
-            next({});
-          }
-        }}
-        className='mt-4 px-4 py-2 bg-blue-500 text-white rounded-sm hover:bg-blue-600 transition-colors'
-      >
-        Count: {count}
-      </button>
-    </>
-  );
-};
-
-const CustomQuestion = () => {
-  return (
-    <>
-      <p>This is a custom question</p>
-    </>
-  );
-};
 
 const experiment = [
   {
@@ -47,13 +19,15 @@ const experiment = [
     props: {
       buttonText: "Let's Begin",
       animate: true,
+      containerClass: BG_CLASS,
+      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
         <>
-          <h1 className='text-4xl'>
+          <h1 className='text-4xl text-[#f5f5f5]'>
             <strong>Hello Reactive! </strong>
           </h1>
           <br />
-          This is a basic text component. <br />
+          <span className="text-[#f5f5f5]">There are many variations of passages of Lorem Ipsum available, but the majority have suffered alteration in some form, by injected humour, or randomised words which don't look even slightly believable. If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text. All the Lorem Ipsum generators on the Internet tend to repeat predefined chunks as necessary, making this the first true generator on the Internet. It uses a dictionary of over 200 Latin words, combined with a handful of model sentence structures, to generate Lorem Ipsum which looks reasonable. The generated Lorem Ipsum is therefore always free from repetition, injected humour, or non-characteristic words etc.</span> <br />
         </>
       ),
     },
@@ -63,15 +37,17 @@ const experiment = [
     type: 'Text',
     props: {
       buttonText: "Start RDK Trial",
+      containerClass: BG_CLASS,
+      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
         <>
-          <h1 className='text-4xl'>
+          <h1 className='text-4xl text-[#f5f5f5]'>
             <strong>Random Dot Kinematogram</strong>
           </h1>
           <br />
-          <p>In the next trial, you will see dots moving on the screen.</p>
-          <p>Press the <strong>LEFT arrow key</strong> if dots are moving left.</p>
-          <p>Press the <strong>RIGHT arrow key</strong> if dots are moving right.</p>
+          <p className="text-[#f5f5f5]">In the next trial, you will see dots moving on the screen.</p>
+          <p className="text-[#f5f5f5]">Press the <strong>LEFT arrow key</strong> if dots are moving left.</p>
+          <p className="text-[#f5f5f5]">Press the <strong>RIGHT arrow key</strong> if dots are moving right.</p>
           <br />
         </>
       ),
@@ -83,7 +59,7 @@ const experiment = [
     props: {
       // Trial parameters
       validKeys: ['arrowleft', 'arrowright'],
-      correctResponse: 'arrowright',
+      correctResponse: 'arrowleft',
       duration: 10000,
       responseEndsTrial: true,
       //dotLifetime: 500,
@@ -99,7 +75,7 @@ const experiment = [
       // Visual parameters
       dotRadius: 3,
       dotColor: 'white',
-      backgroundColor: '#1a1a2e',  // Dark navy
+      backgroundColor: BG_COLOR,
 
       // Aperture
       apertureShape: 'circle' as const,
@@ -118,18 +94,27 @@ const experiment = [
     }as RDKProps,
   },
   {
+    name: 'bdm_reward',
+    type: 'BDMReward',
+    props: (data: any[]) => (
+      { isUserCorrect: data[data.length - 1]?.responseData?.correct ?? false }
+    ),
+  },
+  {
     name: 'rdk_colored_instructions',
     type: 'Text',
     props: {
       buttonText: "Try Colored Version",
+      containerClass: BG_CLASS,
+      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
         <>
-          <h1 className='text-4xl'>
+          <h1 className='text-4xl text-[#f5f5f5]'>
             <strong>Colored Coherent Dots</strong>
           </h1>
           <br />
-          <p>In this trial, <strong style={{ color: 'red' }}>coherent dots will be red</strong> and noise dots will be white.</p>
-          <p>This makes it easier to see which dots are moving together.</p>
+          <p className="text-[#f5f5f5]">In this trial, <strong style={{ color: 'red' }}>coherent dots will be red</strong> and noise dots will be white.</p>
+          <p className="text-[#f5f5f5]">This makes it easier to see which dots are moving together.</p>
           <br />
         </>
       ),
@@ -152,7 +137,7 @@ const experiment = [
       dotRadius: 3,
       dotColor: 'white',
       coherentDotColor: 'red', // Coherent dots are red!
-      backgroundColor: '#16213e',  // Deep blue
+      backgroundColor: BG_COLOR,
 
       apertureShape: 'circle' as const,
       apertureWidth: 600,
@@ -170,14 +155,16 @@ const experiment = [
     type: 'Text',
     props: {
       buttonText: "Try Emoji Dots!",
+      containerClass: BG_CLASS,
+      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
         <>
-          <h1 className='text-4xl'>
-            <strong>Emoji Dots 🎯</strong>
+          <h1 className='text-4xl text-[#f5f5f5]'>
+            <strong>Emoji Dots</strong>
           </h1>
           <br />
-          <p>In this trial, instead of circles, you'll see <strong>emoji bees 🐝</strong>!</p>
-          <p>Which direction are the bees flying?</p>
+          <p className="text-[#f5f5f5]">In this trial, instead of circles, you'll see <strong>emoji bees</strong>!</p>
+          <p className="text-[#f5f5f5]">Which direction are the bees flying?</p>
           <br />
         </>
       ),
@@ -199,7 +186,7 @@ const experiment = [
 
       dotRadius: 5,
       dotCharacter: '🐝',          // BEE EMOJI!
-      backgroundColor: '#e8f4f8',  // Light blue sky
+      backgroundColor: BG_COLOR,
 
       apertureShape: 'rectangle' as const,
       apertureWidth: 800,
@@ -216,15 +203,17 @@ const experiment = [
     type: 'Text',
     props: {
       buttonText: "Try Late Response Trial",
+      containerClass: BG_CLASS,
+      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
         <>
-          <h1 className='text-4xl'>
+          <h1 className='text-4xl text-[#f5f5f5]'>
             <strong>Late Responses Allowed</strong>
           </h1>
           <br />
-          <p>In this trial, the dots will disappear after 1 second.</p>
-          <p>However, you can <strong>still respond after they disappear</strong>.</p>
-          <p>Try waiting until after the dots vanish before pressing a key.</p>
+          <p className="text-[#f5f5f5]">In this trial, the dots will disappear after 1 second.</p>
+          <p className="text-[#f5f5f5]">However, you can <strong>still respond after they disappear</strong>.</p>
+          <p className="text-[#f5f5f5]">Try waiting until after the dots vanish before pressing a key.</p>
           <br />
         </>
       ),
@@ -247,7 +236,7 @@ const experiment = [
 
       dotRadius: 3,
       dotColor: 'white',
-      backgroundColor: '#2d3436',  // Charcoal
+      backgroundColor: BG_COLOR,
 
       apertureShape: 'circle' as const,
       apertureWidth: 600,
@@ -257,41 +246,6 @@ const experiment = [
       showFixation: true, // Fixation remains visible after dots disappear
       showBorder: true,
       borderColor: 'white',
-    },
-  },
-  {
-    name: 'customtrial',
-    type: 'CustomTrial',
-    props: {
-      maxCount: 5,
-    },
-  },
-  {
-    name: 'survey',
-    type: 'Quest',
-    props: {
-      surveyJson: {
-        pages: [
-          {
-            elements: [
-              {
-                type: 'rating',
-                name: 'examplequestion',
-                title: 'We can use all of the surveyjs components in the framework',
-                isRequired: true,
-                rateMin: 1,
-                rateMax: 6,
-                minRateDescription: 'Not at all',
-                maxRateDescription: 'Extremely',
-              },
-              {
-                title: 'Cutom Question',
-                type: 'CustomQuestion',
-              },
-            ],
-          },
-        ],
-      },
     },
   },
   {
@@ -305,7 +259,9 @@ const experiment = [
     name: 'finaltext',
     type: 'Text',
     props: {
-      content: <>Thank you for participating in our study, you can now close the browser window.</>,
+      containerClass: BG_CLASS,
+      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
+      content: <p className="text-[#f5f5f5]">Thank you for participating in our study, you can now close the browser window.</p>,
     },
   },
 ];
@@ -315,8 +271,7 @@ export default function Experiment() {
     <ExperimentRunner
       config={config}
       timeline={experiment}
-      components={{ CustomTrial, RandomDotKinematogram }}
-      questions={{ CustomQuestion }}
+      components={{ RandomDotKinematogram, BDMReward }}
     />
   );
 }

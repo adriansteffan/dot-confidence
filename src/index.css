@@ -9,3 +9,12 @@
 
 @source '../node_modules/@adriansteffan/reactive/dist/**/*.{js,jsx,ts,tsx}';
 @source '../node_modules/@adriansteffan/reactive/src/**/*.{js,jsx,ts,tsx}';
+
+/* Neobrutalist grid background */
+.neo-grid-bg {
+  background-color: #21294b;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
