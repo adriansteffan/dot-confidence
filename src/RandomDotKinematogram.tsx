@@ -78,6 +78,7 @@ export interface RDKProps extends BaseComponentProps {
   noiseMovement?: NoiseMovement;
   reassignEveryMs?: number;  // undefined = never, 0 = every update, > 0 = every X ms
   showFixation?: boolean;
+  fixationTime?: number;
   fixationWidth?: number;
   fixationHeight?: number;
   fixationColor?: string;
@@ -432,6 +433,7 @@ export const RandomDotKinematogram = ({
   reassignEveryMs,  // undefined = never, 0 = every update, > 0 = every X ms
   // Fixation cross
   showFixation = false,
+  fixationTime = 500,
   fixationWidth = 15,
   fixationHeight = 15,
   fixationColor = 'white',
@@ -460,6 +462,7 @@ export const RandomDotKinematogram = ({
   const [response, setResponse] = useState<string | null>(null);
   const [responseTime, setResponseTime] = useState<number | null>(null);
   const [trialEnded, setTrialEnded] = useState(false);
+  const [fixationComplete, setFixationComplete] = useState(fixationTime <= 0);
   const [stimulusVisible, setStimulusVisible] = useState(true);
 
   const aperture = useMemo(
@@ -596,15 +599,16 @@ export const RandomDotKinematogram = ({
         : 0;
       const correctedElapsed = elapsed + halfFrameCorrection;
 
-      // Hide stimulus after stimulusDuration (if provided and less than duration)
-      const effectiveStimulusDuration = stimulusDuration ?? duration;
+      // Hide stimulus after fixationTime + stimulusDuration
+      const effectiveStimulusDuration = fixationTime + (stimulusDuration ?? duration);
       if (effectiveStimulusDuration > 0 && !stimulusHiddenRef.current && correctedElapsed >= effectiveStimulusDuration) {
         stimulusHiddenRef.current = true;
         setStimulusVisible(false);
       }
 
-      // End trial after max duration
-      if (duration > 0 && !trialEndedRef.current && correctedElapsed >= duration) {
+      // End trial after fixationTime + duration
+      const totalDuration = fixationTime + duration;
+      if (duration > 0 && !trialEndedRef.current && correctedElapsed >= totalDuration) {
         trialEndedRef.current = true;
         setTrialEnded(true);
       }
@@ -617,7 +621,7 @@ export const RandomDotKinematogram = ({
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (!stimulusVisible) {
+    if (!stimulusVisible || !fixationComplete) {
       drawFixation(ctx, aperture.centerX, aperture.centerY);
     } else {
       if (shouldUpdate) {
@@ -695,6 +699,8 @@ export const RandomDotKinematogram = ({
     drawDots,
     drawFixation,
     drawBorder,
+    fixationComplete,
+    fixationTime,
   ]);
 
   // Handle keyboard response
@@ -731,6 +737,13 @@ export const RandomDotKinematogram = ({
       }
     };
   }, [animate]);
+
+  // Fixation duration delay before showing dots
+  useEffect(() => {
+    if (fixationTime <= 0) return;
+    const timer = setTimeout(() => setFixationComplete(true), fixationTime);
+    return () => clearTimeout(timer);
+  }, [fixationTime]);
 
   // End trial and return data
   useEffect(() => {

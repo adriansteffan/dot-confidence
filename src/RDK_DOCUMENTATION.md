@@ -27,7 +27,7 @@ Will have to have a manual go at all of this to create an actually decent refere
 |-----------|------|---------|-------------|
 | `validKeys` | `string[]` | `[]` | Valid keyboard responses. Empty array = any key valid |
 | `correctResponse` | `string \| string[]` | `undefined` | The correct response(s) for this trial |
-| `duration` | `number` | `1000` | Total trial duration in ms (response window). Use `-1` for infinite duration |
+| `duration` | `number` | `1000` | Duration in ms that dots are shown (response window). Total trial time = `fixationTime + duration`. Use `-1` for infinite duration |
 | `stimulusDuration` | `number` | `undefined` | How long to show stimulus in ms. Defaults to `duration`. Set lower than `duration` to hide stimulus while still accepting responses |
 | `responseEndsTrial` | `boolean` | `true` | Whether response ends the trial immediately |
 
@@ -96,6 +96,7 @@ When a dot exits the aperture boundary, `reinsertMode` controls where it reappea
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `showFixation` | `boolean` | `false` | Show fixation cross |
+| `fixationTime` | `number` | `500` | Duration in ms to show fixation before dots appear. Added to `duration` for total trial time |
 | `fixationWidth` | `number` | `15` | Width in pixels |
 | `fixationHeight` | `number` | `15` | Height in pixels |
 | `fixationColor` | `string` | `"white"` | Color |
