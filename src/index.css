@@ -10,7 +10,7 @@
 @source '../node_modules/@adriansteffan/reactive/dist/**/*.{js,jsx,ts,tsx}';
 @source '../node_modules/@adriansteffan/reactive/src/**/*.{js,jsx,ts,tsx}';
 
-/* Neobrutalist grid background */
+
 .neo-grid-bg {
   background-color: #21294b;
   background-image:

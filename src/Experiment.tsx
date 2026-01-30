@@ -1,267 +1,138 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { ExperimentRunner, ExperimentConfig } from '@adriansteffan/reactive';
-import { RandomDotKinematogram, RDKProps } from './RandomDotKinematogram';
-import { BDMReward } from './BDMReward';
+import { ExperimentRunner, ExperimentConfig, getParam, shuffle } from '@adriansteffan/reactive';
+import { RandomDotKinematogram, RDKProps, NoiseMovement } from './RandomDotKinematogram';
+import { Feedback, BDMReward } from './feedback';
 
+const config: ExperimentConfig = { showProgressBar: false };
 
-const config: ExperimentConfig = { showProgressBar: false};
-
-// Shared background color for consistent styling
-const BG_COLOR = '#21294b';
-// CSS class for neobrutalist grid background (defined in index.css)
 const BG_CLASS = 'neo-grid-bg';
+const NTRIALS = getParam('ntrials', 50, 'number', 'Number of trials to show');
+const STIMDUR = getParam('stimdur', 2000, 'number', 'Stimulus duration in milliseconds');
 
+const CONDITIONS = ['control', 'simple', 'bdm'] as const;
+const CONDITION = getParam(
+  'condition',
+  CONDITIONS[Math.floor(Math.random() * CONDITIONS.length)],
+  'string',
+  'Feedback condition (control, simple, bdm)',
+);
+
+const NDOTS = getParam('ndots', 200, 'number', 'Number of dots to display');
+const COHERENCES = getParam(
+  'coherences',
+  [0.05, 0.15, 0.25, 0.35, 0.5],
+  'json',
+  'List of coherence levels',
+) as number[];
+
+const DOTLIFETIME = getParam('dotlifetime', 100, 'number', 'Dot lifetime in milliseconds');
+const DOTSPEED = getParam('dotspeed', 120, 'number', 'Dot speed in pixels per second');
+
+const NOISE_MOVEMENT = getParam(
+  'noiseMovement',
+  'randomDirection',
+  'string',
+  'Noise dot movement type',
+) as NoiseMovement;
+
+const KEY_LEFT = getParam('key_left', 'arrowleft', 'string', 'Key for leftward response');
+const KEY_RIGHT = getParam('key_right', 'arrowright', 'string', 'Key for rightward response');
+
+const trialsPerCoherence = Math.floor(NTRIALS / COHERENCES.length);
 
 const experiment = [
   {
-    name: 'introtext',
+    name: 'intro',
     type: 'Text',
     props: {
-      buttonText: "Let's Begin",
+      buttonText: 'Start',
       animate: true,
       containerClass: BG_CLASS,
       className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
         <>
           <h1 className='text-4xl text-[#f5f5f5]'>
-            <strong>Hello Reactive! </strong>
+            <strong>Instructions</strong>
           </h1>
           <br />
-          <span className="text-[#f5f5f5]">There are many variations of passages of Lorem Ipsum available, but the majority have suffered alteration in some form, by injected humour, or randomised words which don't look even slightly believable. If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text. All the Lorem Ipsum generators on the Internet tend to repeat predefined chunks as necessary, making this the first true generator on the Internet. It uses a dictionary of over 200 Latin words, combined with a handful of model sentence structures, to generate Lorem Ipsum which looks reasonable. The generated Lorem Ipsum is therefore always free from repetition, injected humour, or non-characteristic words etc.</span> <br />
+          <p className='text-[#f5f5f5]'>Placeholder until we settle on the details.</p>
+          <p className='text-[#f5f5f5]'>You will see dots moving on the screen.</p>
+          <p className='text-[#f5f5f5]'>
+            Press <strong>LEFT ARROW</strong> if dots move left, <strong>RIGHT ARROW</strong> if
+            dots move right.
+          </p>
+          <p className='text-[#f5f5f5]'>
+            After each trial, you'll rate your confidence or receive feedback.
+          </p>
         </>
       ),
     },
   },
-  {
-    name: 'rdk_instructions',
-    type: 'Text',
-    props: {
-      buttonText: "Start RDK Trial",
-      containerClass: BG_CLASS,
-      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
-      content: (
-        <>
-          <h1 className='text-4xl text-[#f5f5f5]'>
-            <strong>Random Dot Kinematogram</strong>
-          </h1>
-          <br />
-          <p className="text-[#f5f5f5]">In the next trial, you will see dots moving on the screen.</p>
-          <p className="text-[#f5f5f5]">Press the <strong>LEFT arrow key</strong> if dots are moving left.</p>
-          <p className="text-[#f5f5f5]">Press the <strong>RIGHT arrow key</strong> if dots are moving right.</p>
-          <br />
-        </>
-      ),
+
+  ...shuffle(
+    COHERENCES.flatMap((coherence) => {
+      const trialsPerDirection = Math.floor(trialsPerCoherence / 2);
+      return [
+        { direction: 270, correctResponse: KEY_LEFT },
+        { direction: 90, correctResponse: KEY_RIGHT },
+      ].flatMap(({ direction, correctResponse }) =>
+        Array.from({ length: trialsPerDirection }, () => ({
+          coherence,
+          direction,
+          correctResponse,
+        })),
+      );
+    }),
+  ).flatMap(({ coherence, direction, correctResponse }, i) => [
+    {
+      name: `rdk_${i}`,
+      type: 'RandomDotKinematogram',
+      props: {
+        validKeys: [KEY_LEFT, KEY_RIGHT],
+        responseEndsTrial: true,
+        stimulusDuration: STIMDUR,
+        duration: -1,
+        fixationTime: 500,
+        dotCount: NDOTS,
+        speed: DOTSPEED,
+        dotRadius: 3,
+        dotColor: 'white',
+        dotLifetime: DOTLIFETIME,
+        apertureShape: 'circle',
+        apertureWidth: 500,
+        apertureHeight: 500,
+        noiseMovement: NOISE_MOVEMENT,
+        reinsertMode: 'opposite',
+        showFixation: true,
+        showBorder: true,
+        borderColor: 'white',
+        backgroundColor: '#21294b',
+        coherence,
+        direction,
+        correctResponse,
+      } as RDKProps,
     },
-  },
-  {
-    name: 'rdk_trial',
-    type: 'RandomDotKinematogram',
-    props: {
-      // Trial parameters
-      validKeys: ['arrowleft', 'arrowright'],
-      correctResponse: 'arrowleft',
-      duration: 10000,
-      responseEndsTrial: true,
-      //dotLifetime: 500,
-
-      // Motion parameters
-      dotCount: 200,
-      reinsertMode: 'opposite',
-      direction: 240, // 90 = rightward
-      coherence: 1.0,
-      speed: 120,  // pixels per second
-      //coherentDotColor: "blue",
-
-      // Visual parameters
-      dotRadius: 3,
-      dotColor: 'white',
-      backgroundColor: BG_COLOR,
-
-      // Aperture
-      apertureShape: 'circle' as const,
-      apertureWidth: 600,
-      apertureHeight: 600,
-      updateRate: 100,
-
-      // Display elements
-      noiseMovement: 'randomDirection',
-      //reassignEveryMs: 1000,  // undefined = never, 0 = every update, > 0 = every X ms
-      
-      //coherentDotColor: 'red',
-      showFixation: true,
-      showBorder: true,
-      borderColor: 'white',
-    }as RDKProps,
-  },
-  {
-    name: 'bdm_reward',
-    type: 'BDMReward',
-    props: (data: any[]) => (
-      { isUserCorrect: data[data.length - 1]?.responseData?.correct ?? false }
-    ),
-  },
-  {
-    name: 'rdk_colored_instructions',
-    type: 'Text',
-    props: {
-      buttonText: "Try Colored Version",
-      containerClass: BG_CLASS,
-      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
-      content: (
-        <>
-          <h1 className='text-4xl text-[#f5f5f5]'>
-            <strong>Colored Coherent Dots</strong>
-          </h1>
-          <br />
-          <p className="text-[#f5f5f5]">In this trial, <strong style={{ color: 'red' }}>coherent dots will be red</strong> and noise dots will be white.</p>
-          <p className="text-[#f5f5f5]">This makes it easier to see which dots are moving together.</p>
-          <br />
-        </>
-      ),
+    {
+      name: `feedback_${i}`,
+      type: CONDITION === 'bdm' ? 'BDMReward' : 'Feedback',
+      props: (data: any[]) => ({
+        isUserCorrect: data[data.length - 1]?.responseData?.correct ?? false,
+        showConfidencePicker: CONDITION === 'simple',
+      }),
     },
-  },
-  {
-    name: 'rdk_colored_trial',
-    type: 'RandomDotKinematogram',
-    props: {
-      validKeys: ['arrowleft', 'arrowright'],
-      correctResponse: 'arrowleft',
-      duration: 3000,
-      responseEndsTrial: true,
+  ]),
 
-      dotCount: 200,
-      direction: 270, // 270 = leftward
-      coherence: 0.7,
-      speed: 120,  // pixels per second
-
-      dotRadius: 3,
-      dotColor: 'white',
-      coherentDotColor: 'red', // Coherent dots are red!
-      backgroundColor: BG_COLOR,
-
-      apertureShape: 'circle' as const,
-      apertureWidth: 600,
-      apertureHeight: 600,
-
-      noiseMovement: 'randomDirection',
-      reassignEveryMs: undefined,
-      showFixation: true,
-      showBorder: true,
-      borderColor: 'white',
-    },
-  },
-  {
-    name: 'emoji_instructions',
-    type: 'Text',
-    props: {
-      buttonText: "Try Emoji Dots!",
-      containerClass: BG_CLASS,
-      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
-      content: (
-        <>
-          <h1 className='text-4xl text-[#f5f5f5]'>
-            <strong>Emoji Dots</strong>
-          </h1>
-          <br />
-          <p className="text-[#f5f5f5]">In this trial, instead of circles, you'll see <strong>emoji bees</strong>!</p>
-          <p className="text-[#f5f5f5]">Which direction are the bees flying?</p>
-          <br />
-        </>
-      ),
-    },
-  },
-  {
-    name: 'rdk_emoji_trial',
-    type: 'RandomDotKinematogram',
-    props: {
-      validKeys: ['arrowleft', 'arrowright', 'arrowup', 'arrowdown'],
-      correctResponse: 'arrowup',
-      duration: 3000,
-      responseEndsTrial: true,
-
-      dotCount: 100,
-      direction: 0, // upward
-      coherence: 0.6,
-      speed: 90,  // pixels per second
-
-      dotRadius: 5,
-      dotCharacter: '🐝',          // BEE EMOJI!
-      backgroundColor: BG_COLOR,
-
-      apertureShape: 'rectangle' as const,
-      apertureWidth: 800,
-      apertureHeight: 500,
-
-      noiseMovement: 'randomDirection',
-      showFixation: false,
-      showBorder: true,
-      borderColor: '#666',
-    },
-  },
-  {
-    name: 'late_response_instructions',
-    type: 'Text',
-    props: {
-      buttonText: "Try Late Response Trial",
-      containerClass: BG_CLASS,
-      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
-      content: (
-        <>
-          <h1 className='text-4xl text-[#f5f5f5]'>
-            <strong>Late Responses Allowed</strong>
-          </h1>
-          <br />
-          <p className="text-[#f5f5f5]">In this trial, the dots will disappear after 1 second.</p>
-          <p className="text-[#f5f5f5]">However, you can <strong>still respond after they disappear</strong>.</p>
-          <p className="text-[#f5f5f5]">Try waiting until after the dots vanish before pressing a key.</p>
-          <br />
-        </>
-      ),
-    },
-  },
-  {
-    name: 'rdk_late_response_trial',
-    type: 'RandomDotKinematogram',
-    props: {
-      validKeys: ['arrowleft', 'arrowright'],
-      correctResponse: 'arrowright',
-      duration: 3000,           // Total response window: 3 seconds
-      stimulusDuration: 1000,   // Dots visible for 1 second, then blank
-      responseEndsTrial: true,
-
-      dotCount: 200,
-      direction: 90, // rightward
-      coherence: 0.7,
-      speed: 120,  // pixels per second
-
-      dotRadius: 3,
-      dotColor: 'white',
-      backgroundColor: BG_COLOR,
-
-      apertureShape: 'circle' as const,
-      apertureWidth: 600,
-      apertureHeight: 600,
-
-      noiseMovement: 'randomDirection',
-      showFixation: true, // Fixation remains visible after dots disappear
-      showBorder: true,
-      borderColor: 'white',
-    },
-  },
   {
     name: 'upload',
     type: 'Upload',
-    props: {
-      autoUpload: false,
-    }
+    props: { autoUpload: false },
   },
   {
-    name: 'finaltext',
+    name: 'end',
     type: 'Text',
     props: {
-      containerClass: BG_CLASS,
       className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
-      content: <p className="text-[#f5f5f5]">Thank you for participating in our study, you can now close the browser window.</p>,
+      content: <p className='text-[#f5f5f5]'>Thank you for participating!</p>,
     },
   },
 ];
@@ -271,7 +142,7 @@ export default function Experiment() {
     <ExperimentRunner
       config={config}
       timeline={experiment}
-      components={{ RandomDotKinematogram, BDMReward }}
+      components={{ RandomDotKinematogram, Feedback, BDMReward }}
     />
   );
 }
