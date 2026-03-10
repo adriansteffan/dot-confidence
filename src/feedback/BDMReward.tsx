@@ -1,7 +1,7 @@
 // Becker-DeGroot-Marschak implementation with a hopefully tracable animation
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion, LayoutGroup } from 'motion/react';
+import { motion, LayoutGroup, useMotionValue, useTransform, animate } from 'motion/react';
 import { BaseComponentProps, shuffle } from '@adriansteffan/reactive';
 import {
   BORDER,
@@ -31,76 +31,38 @@ interface ChipPosition {
 
 // BDM-specific timing constants (in ms)
 const SETTLE_DELAY = 600;
-const FADE_DURATION = 400;
-const POSITION_DELAY = 1200;
+const FADE_DURATION = 600;
+const POSITION_DELAY = 1800;
 
 type GridState = 'idle' | 'activating' | 'scanning' | 'complete';
 
 const LotteryGrid = ({
-  greenChipPercent,
+  displayPercent,
   gridSize,
-  animationDuration,
   state,
   showLabel = false,
   onResolved,
 }: {
-  greenChipPercent: number;
+  displayPercent: number;
   gridSize: number;
-  animationDuration: number;
   state: GridState;
   showLabel?: boolean;
   onResolved: (won: boolean) => void;
 }) => {
-  const [activeChipCount, setActiveChipCount] = useState(0);
   const [scanPosition, setScanPosition] = useState<ChipPosition | null>(null);
   const [selectedChip, setSelectedChip] = useState<ChipPosition | null>(null);
 
-  const { chipGrid, activationOrder, finalChip } = useMemo(() => {
+  const { chipOrder, finalChip } = useMemo(() => {
     const totalChips = gridSize * gridSize;
-    const greenCount = Math.round((greenChipPercent / 100) * totalChips);
-    const chips = shuffle([
-      ...Array(greenCount).fill(true),
-      ...Array(totalChips - greenCount).fill(false),
-    ]);
-
-    const grid: boolean[][] = [];
-    const greenIndices: number[] = [];
-    for (let row = 0; row < gridSize; row++) {
-      grid.push(chips.slice(row * gridSize, (row + 1) * gridSize));
-      for (let col = 0; col < gridSize; col++) {
-        if (grid[row][col]) greenIndices.push(row * gridSize + col);
-      }
-    }
-
+    const indices = Array.from({ length: totalChips }, (_, i) => i);
     return {
-      chipGrid: grid,
-      activationOrder: shuffle(greenIndices),
+      chipOrder: shuffle(indices),
       finalChip: {
         row: Math.floor(Math.random() * gridSize),
         col: Math.floor(Math.random() * gridSize),
       },
     };
-  }, [gridSize, greenChipPercent]);
-
-  useEffect(() => {
-    if (state !== 'activating') return;
-
-    const totalChips = gridSize * gridSize;
-    const targetChips = Math.round((greenChipPercent / 100) * totalChips);
-    const delayPerChip = (animationDuration - 200) / Math.max(targetChips, 1);
-    let count = 0;
-    let chipTimer: ReturnType<typeof setTimeout>;
-
-    const activateNext = () => {
-      if (count >= targetChips) return;
-      count++;
-      setActiveChipCount(count);
-      if (count < targetChips) chipTimer = setTimeout(activateNext, delayPerChip);
-    };
-    chipTimer = setTimeout(activateNext, SETTLE_DELAY + 100);
-
-    return () => clearTimeout(chipTimer);
-  }, [state, greenChipPercent, gridSize, animationDuration]);
+  }, [gridSize]);
 
   useEffect(() => {
     if (state !== 'scanning') return;
@@ -121,7 +83,9 @@ const LotteryGrid = ({
       if (idx >= scanSequence.length) {
         setSelectedChip(finalChip);
         setScanPosition(null);
-        const isWin = chipGrid[finalChip.row][finalChip.col];
+        const totalChips = gridSize * gridSize;
+        const greenCount = Math.round((displayPercent / 100) * totalChips);
+        const isWin = chipOrder.indexOf(finalChip.row * gridSize + finalChip.col) < greenCount;
         onResolved(isWin);
         return;
       }
@@ -133,27 +97,28 @@ const LotteryGrid = ({
 
     timer = setTimeout(runScan, SETTLE_DELAY);
     return () => clearTimeout(timer);
-  }, [state, gridSize, chipGrid, finalChip, onResolved]);
+  }, [state, gridSize, chipOrder, finalChip, onResolved, displayPercent]);
 
-  const showAll = state === 'scanning' || state === 'complete';
-  const activated = new Set(activationOrder.slice(0, activeChipCount));
+  const totalChips = gridSize * gridSize;
+  const greenCount = Math.round((displayPercent / 100) * totalChips);
+  const greenSet = new Set(chipOrder.slice(0, greenCount));
 
   return (
     <div className='flex flex-col items-center'>
       {showLabel && <p className='text-lg font-bold text-gray-400 mb-3'>LOTTERY</p>}
       <div className={`p-4 ${BORDER}`} style={{ boxShadow: SHADOW, background: '#374151' }}>
         <div className='flex flex-col gap-1'>
-          {chipGrid.map((row, r) => (
+          {Array.from({ length: gridSize }, (_, r) => (
             <div key={r} className='flex gap-1'>
-              {row.map((isGreen, c) => {
+              {Array.from({ length: gridSize }, (_, c) => {
                 const idx = r * gridSize + c;
-                const showGreen = isGreen && (showAll || activated.has(idx));
+                const isGreen = greenSet.has(idx);
                 const scanning = scanPosition?.row === r && scanPosition?.col === c;
                 const selected = selectedChip?.row === r && selectedChip?.col === c;
                 return (
                   <motion.div
                     key={c}
-                    className={`w-5 h-5 border-2 border-black ${showGreen ? 'bg-green-400' : 'bg-red-400'} ${scanning ? 'ring-2 ring-white' : ''} ${selected ? 'ring-4 ring-white' : ''}`}
+                    className={`w-5 h-5 border-2 border-black ${isGreen ? 'bg-green-400' : 'bg-red-400'} ${scanning ? 'ring-2 ring-white' : ''} ${selected ? 'ring-4 ring-white' : ''}`}
                     animate={{ scale: selected ? 1.5 : scanning ? 1.25 : 1 }}
                     transition={{ duration: 0.15 }}
                   />
@@ -167,87 +132,107 @@ const LotteryGrid = ({
   );
 };
 
-const ComparingBar = ({
+function ComparingBar({
   userConfidence,
   lotteryValue,
   animationDuration,
   winningSource,
   isFadingOut,
+  onPositionChange,
 }: {
   userConfidence: number;
   lotteryValue: number;
   animationDuration: number;
   winningSource: 'task' | 'lottery' | null;
   isFadingOut: boolean;
-}) => (
-  <motion.div
-    className='w-full'
-    animate={{ opacity: isFadingOut ? 0 : 1 }}
-    transition={{ duration: 0.4, ease: 'easeOut' }}
-  >
-    <div className='w-full relative h-12 mb-2'>
-      <div
-        className='absolute text-2xl font-black text-yellow-400'
-        style={{
-          left: `${userConfidence}%`,
-          transform:
-            userConfidence <= 5
-              ? 'translateX(0)'
-              : userConfidence >= 95
-                ? 'translateX(-100%)'
-                : 'translateX(-50%)',
-        }}
-      >
-        {userConfidence}%
-      </div>
-    </div>
+  onPositionChange?: (position: number) => void;
+}) {
+  const totalDistance = 200 + lotteryValue; // 2 full sweeps + landing
+  const distance = useMotionValue(0);
+  const left = useTransform(distance, (v) => `${v % 100}%`);
 
+  useEffect(() => {
+    const controls = animate(distance, totalDistance, {
+      duration: animationDuration / 1000,
+      ease: [0.35, 0.25, 0.05, 1],
+      delay: SETTLE_DELAY / 1000,
+    });
+    return () => controls.stop();
+  }, []);
+
+  useEffect(() => {
+    return distance.on('change', (v) => {
+      onPositionChange?.(v % 100);
+    });
+  }, [distance, onPositionChange]);
+
+  return (
     <motion.div
-      layout={!isFadingOut}
-      layoutId='confidence-bar'
-      className={`relative w-full h-16 bg-gray-600 overflow-hidden ${BORDER}`}
-      style={{ boxShadow: SHADOW }}
+      className='w-full'
+      animate={{ opacity: isFadingOut ? 0 : 1 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <div
-        className='absolute top-0 h-full z-10'
-        style={{
-          left: `${userConfidence}%`,
-          transform: 'translateX(-50%)',
-          width: 6,
-          backgroundColor: '#facc15',
-          boxShadow: '0 0 8px rgba(250,204,21,0.6)',
-        }}
-      />
+      <div className='w-full relative h-12 mb-2'>
+        <div
+          className='absolute text-2xl font-black text-yellow-400'
+          style={{
+            left: `${userConfidence}%`,
+            transform:
+              userConfidence <= 5
+                ? 'translateX(0)'
+                : userConfidence >= 95
+                  ? 'translateX(-100%)'
+                  : 'translateX(-50%)',
+          }}
+        >
+          {userConfidence}%
+        </div>
+      </div>
 
       <motion.div
-        className='absolute top-0 h-full w-1.5 bg-blue-400 z-20'
-        initial={{ left: '0%' }}
-        animate={{ left: `${lotteryValue}%` }}
-        transition={{
-          duration: animationDuration / 1000,
-          ease: 'easeOut',
-          delay: SETTLE_DELAY / 1000,
-        }}
-        style={{ transform: 'translateX(-50%)', boxShadow: '0 0 8px rgba(96,165,250,0.6)' }}
-      />
-
-      {winningSource && (
-        <motion.div
-          className='absolute top-0 h-full bg-blue-400'
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
+        layout={!isFadingOut}
+        layoutId='confidence-bar'
+        className={`relative w-full h-16 bg-gray-600 overflow-hidden ${BORDER}`}
+        style={{ boxShadow: SHADOW }}
+      >
+        <div
+          className='absolute top-0 h-full z-10'
           style={{
-            left: winningSource === 'task' ? 0 : `${userConfidence}%`,
-            width: winningSource === 'task' ? `${userConfidence}%` : `${100 - userConfidence}%`,
+            left: `${userConfidence}%`,
+            transform: 'translateX(-50%)',
+            width: 6,
+            backgroundColor: '#facc15',
+            boxShadow: '0 0 8px rgba(250,204,21,0.6)',
           }}
         />
-      )}
-    </motion.div>
 
-    <TickMarks />
-  </motion.div>
-);
+        <motion.div
+          className='absolute top-0 h-full w-1.5 bg-blue-400 z-20'
+          style={{
+            left,
+            transform: 'translateX(-50%)',
+            boxShadow: '0 0 8px rgba(96,165,250,0.6)',
+          }}
+        />
+
+        {winningSource && (
+          <motion.div
+            className='absolute top-0 h-full bg-blue-400'
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            style={{
+              left: winningSource === 'task' ? 0 : `${userConfidence}%`,
+              width: winningSource === 'task' ? `${userConfidence}%` : `${100 - userConfidence}%`,
+            }}
+          />
+        )}
+      </motion.div>
+
+      <TickMarks />
+    </motion.div>
+  );
+}
 
 export const BDMReward = ({
   next,
@@ -264,6 +249,7 @@ export const BDMReward = ({
   const [wonReward, setWonReward] = useState<boolean | null>(null);
   const [cardRevealed, setCardRevealed] = useState(false);
   const [winnerRevealed, setWinnerRevealed] = useState(false);
+  const [indicatorPosition, setIndicatorPosition] = useState(0);
 
   const pickingStartTimeRef = useRef(performance.now());
   const pickingRTRef = useRef(0);
@@ -294,19 +280,24 @@ export const BDMReward = ({
 
   useEffect(() => {
     if (phase !== 'comparing') return;
-    const endTimer = setTimeout(() => setPhase('decision'), SETTLE_DELAY + animationDuration);
-    return () => clearTimeout(endTimer);
-  }, [phase, animationDuration]);
+    // Light up winning half as soon as animation lands, then wait before transitioning
+    const highlightTimer = setTimeout(() => {
+      const taskWins = userConfidence > greenChipPercent;
+      setSource(taskWins ? 'task' : 'lottery');
+    }, SETTLE_DELAY + animationDuration);
+    const endTimer = setTimeout(() => setPhase('decision'), SETTLE_DELAY + animationDuration + 1000);
+    return () => {
+      clearTimeout(highlightTimer);
+      clearTimeout(endTimer);
+    };
+  }, [phase, animationDuration, userConfidence, greenChipPercent]);
 
   useEffect(() => {
     if (phase !== 'decision') return;
 
-    const taskWins = userConfidence > greenChipPercent;
-    setSource(taskWins ? 'task' : 'lottery');
-
     const revealTimer = setTimeout(() => setWinnerRevealed(true), FADE_DURATION);
 
-    if (taskWins) {
+    if (source === 'task') {
       const revealResultTimer = setTimeout(() => {
         setCardRevealed(true);
         setWonReward(isUserCorrect);
@@ -325,7 +316,7 @@ export const BDMReward = ({
         clearTimeout(resolveTimer);
       };
     }
-  }, [phase, userConfidence, greenChipPercent, isUserCorrect]);
+  }, [phase, source, isUserCorrect]);
 
   useEffect(() => {
     if (phase !== 'feedback') return;
@@ -389,8 +380,9 @@ export const BDMReward = ({
               userConfidence={userConfidence}
               lotteryValue={greenChipPercent}
               animationDuration={animationDuration}
-              winningSource={isDecision ? source : null}
+              winningSource={source}
               isFadingOut={barFadingOut}
+              onPositionChange={setIndicatorPosition}
             />
           )}
 
@@ -427,9 +419,8 @@ export const BDMReward = ({
                   transition={{ duration: 0.4, ease: 'easeOut' }}
                 >
                   <LotteryGrid
-                    greenChipPercent={greenChipPercent}
+                    displayPercent={isComparing ? indicatorPosition : greenChipPercent}
                     gridSize={chipGridSize}
-                    animationDuration={animationDuration}
                     state={
                       isComparing
                         ? 'activating'
