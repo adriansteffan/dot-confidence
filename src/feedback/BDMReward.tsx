@@ -20,6 +20,7 @@ export interface BDMRewardProps extends BaseComponentProps {
   defaultConfidence?: number;
   decreaseKey?: string;
   increaseKey?: string;
+  liveLotteryFill?: boolean;
 }
 
 type Phase = 'picking' | 'comparing' | 'decision' | 'resolving' | 'feedback';
@@ -41,12 +42,14 @@ const LotteryGrid = ({
   gridSize,
   state,
   showLabel = false,
+  grayedOut = false,
   onResolved,
 }: {
   displayPercent: number;
   gridSize: number;
   state: GridState;
   showLabel?: boolean;
+  grayedOut?: boolean;
   onResolved: (won: boolean) => void;
 }) => {
   const [scanPosition, setScanPosition] = useState<ChipPosition | null>(null);
@@ -118,7 +121,7 @@ const LotteryGrid = ({
                 return (
                   <motion.div
                     key={c}
-                    className={`w-5 h-5 border-2 border-black ${isGreen ? 'bg-green-400' : 'bg-red-400'} ${scanning ? 'ring-2 ring-white' : ''} ${selected ? 'ring-4 ring-white' : ''}`}
+                    className={`w-5 h-5 border-2 border-black ${grayedOut ? 'bg-gray-500' : isGreen ? 'bg-green-400' : 'bg-red-400'} ${scanning ? 'ring-2 ring-white' : ''} ${selected ? 'ring-4 ring-white' : ''}`}
                     animate={{ scale: selected ? 1.5 : scanning ? 1.25 : 1 }}
                     transition={{ duration: 0.15 }}
                   />
@@ -242,6 +245,7 @@ export const BDMReward = ({
   defaultConfidence = 50,
   decreaseKey = 'ArrowLeft',
   increaseKey = 'ArrowRight',
+  liveLotteryFill = true,
 }: BDMRewardProps) => {
   const [phase, setPhase] = useState<Phase>('picking');
   const [userConfidence, setUserConfidence] = useState(defaultConfidence);
@@ -419,7 +423,8 @@ export const BDMReward = ({
                   transition={{ duration: 0.4, ease: 'easeOut' }}
                 >
                   <LotteryGrid
-                    displayPercent={isComparing ? indicatorPosition : greenChipPercent}
+                    displayPercent={isComparing && liveLotteryFill ? indicatorPosition : greenChipPercent}
+                    grayedOut={!liveLotteryFill && isComparing}
                     gridSize={chipGridSize}
                     state={
                       isComparing

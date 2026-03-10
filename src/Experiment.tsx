@@ -118,6 +118,7 @@ const experiment = [
       props: (data: any[]) => ({
         isUserCorrect: data[data.length - 1]?.responseData?.correct ?? false,
         showConfidencePicker: CONDITION === 'simple',
+        liveLotteryFill: false,
       }),
     },
   ]),
