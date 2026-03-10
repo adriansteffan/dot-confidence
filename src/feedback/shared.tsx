@@ -160,8 +160,8 @@ export const SubmitButton = ({
   </button>
 );
 
-export const ContinuePrompt = () => (
-  <p className='text-xl text-gray-500 mt-12'>Press Space or Enter to continue</p>
+export const ContinuePrompt = ({ className = 'mt-8' }: { className?: string }) => (
+  <p className={`text-xl text-gray-500 ${className}`}>Press Space or Enter to continue</p>
 );
 
 export const FeedbackContainer = ({ children }: { children: React.ReactNode }) => (

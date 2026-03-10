@@ -289,7 +289,10 @@ export const BDMReward = ({
       const taskWins = userConfidence > greenChipPercent;
       setSource(taskWins ? 'task' : 'lottery');
     }, SETTLE_DELAY + animationDuration);
-    const endTimer = setTimeout(() => setPhase('decision'), SETTLE_DELAY + animationDuration + 1000);
+    const endTimer = setTimeout(
+      () => setPhase('decision'),
+      SETTLE_DELAY + animationDuration + 1000,
+    );
     return () => {
       clearTimeout(highlightTimer);
       clearTimeout(endTimer);
@@ -358,7 +361,7 @@ export const BDMReward = ({
     >
       <LayoutGroup>
         <div className='flex flex-col items-center w-full max-w-2xl'>
-          <h2 className='text-2xl font-black mb-6 text-center'>
+          <h2 className='text-2xl font-black mb-8 text-center'>
             {isPicking && 'How confident are you that your answer was correct?'}
             {isComparing && 'DETERMINING REWARD SOURCE...'}
             {isDecision && source === 'task' && 'TAKING YOUR ANSWER!'}
@@ -371,7 +374,6 @@ export const BDMReward = ({
                 <span className='text-red-400'>NO EXTRA REWARD</span>
               ))}
           </h2>
-
           {isPicking && (
             <>
               <PickingBar confidence={userConfidence} onConfidenceChange={setUserConfidence} />
@@ -393,7 +395,7 @@ export const BDMReward = ({
           {(showSideBySide || showWinnerCentered) && (
             <motion.div
               layout
-              className='flex justify-center items-start mt-12'
+              className='flex justify-center items-start mt-3'
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -423,7 +425,9 @@ export const BDMReward = ({
                   transition={{ duration: 0.4, ease: 'easeOut' }}
                 >
                   <LotteryGrid
-                    displayPercent={isComparing && liveLotteryFill ? indicatorPosition : greenChipPercent}
+                    displayPercent={
+                      isComparing && liveLotteryFill ? indicatorPosition : greenChipPercent
+                    }
                     grayedOut={!liveLotteryFill && isComparing}
                     gridSize={chipGridSize}
                     state={
@@ -443,7 +447,17 @@ export const BDMReward = ({
             </motion.div>
           )}
 
-          {isFeedback && <ContinuePrompt />}
+          {isFeedback && source === 'lottery' && (
+            <p className='text-xl font-bold mt-12 text-gray-400'>
+              Your original answer would have been{' '}
+              <span className={isUserCorrect ? 'text-green-400' : 'text-red-400'}>
+                {isUserCorrect ? 'correct' : 'incorrect'}
+              </span>
+              .
+            </p>
+          )}
+
+          {isFeedback && <ContinuePrompt className={source === 'task' ? 'mt-12' : 'mt-8'} />}
         </div>
       </LayoutGroup>
     </div>
