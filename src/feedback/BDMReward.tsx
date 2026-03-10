@@ -406,7 +406,6 @@ export const BDMReward = ({
 
           {(showSideBySide || showWinnerCentered) && (
             <motion.div
-              layout
               className='flex justify-center items-start mt-3'
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -431,7 +430,7 @@ export const BDMReward = ({
               {(showSideBySide || source === 'lottery') && (
                 <motion.div
                   key='lottery'
-                  layout
+                  layout='position'
                   style={{ marginLeft: showSideBySide ? 40 : 0 }}
                   animate={{ opacity: source === 'task' ? 0 : 1 }}
                   transition={{ duration: 0.4, ease: 'easeOut' }}
