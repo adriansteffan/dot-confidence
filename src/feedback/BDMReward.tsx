@@ -21,6 +21,7 @@ export interface BDMRewardProps extends BaseComponentProps {
   decreaseKey?: string;
   increaseKey?: string;
   liveLotteryFill?: boolean;
+  fastMode?: boolean;
 }
 
 type Phase = 'picking' | 'comparing' | 'decision' | 'resolving' | 'feedback';
@@ -43,6 +44,7 @@ const LotteryGrid = ({
   state,
   showLabel = false,
   grayedOut = false,
+  fast = false,
   onResolved,
 }: {
   displayPercent: number;
@@ -50,6 +52,7 @@ const LotteryGrid = ({
   state: GridState;
   showLabel?: boolean;
   grayedOut?: boolean;
+  fast?: boolean;
   onResolved: (won: boolean) => void;
 }) => {
   const [scanPosition, setScanPosition] = useState<ChipPosition | null>(null);
@@ -70,8 +73,9 @@ const LotteryGrid = ({
   useEffect(() => {
     if (state !== 'scanning') return;
 
+    const scanSteps = fast ? 8 : 20;
     const scanSequence: ChipPosition[] = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < scanSteps; i++) {
       scanSequence.push({
         row: Math.floor(Math.random() * gridSize),
         col: Math.floor(Math.random() * gridSize),
@@ -94,7 +98,9 @@ const LotteryGrid = ({
       }
       setScanPosition(scanSequence[idx]);
       idx++;
-      const delay = 80 + (idx / scanSequence.length) ** 2 * 200;
+      const delay = fast
+        ? 40 + (idx / scanSequence.length) ** 2 * 80
+        : 80 + (idx / scanSequence.length) ** 2 * 200;
       timer = setTimeout(runScan, delay);
     };
 
@@ -246,6 +252,7 @@ export const BDMReward = ({
   decreaseKey = 'ArrowLeft',
   increaseKey = 'ArrowRight',
   liveLotteryFill = true,
+  fastMode = false,
 }: BDMRewardProps) => {
   const [phase, setPhase] = useState<Phase>('picking');
   const [userConfidence, setUserConfidence] = useState(defaultConfidence);
@@ -285,45 +292,50 @@ export const BDMReward = ({
   useEffect(() => {
     if (phase !== 'comparing') return;
     // Light up winning half as soon as animation lands, then wait before transitioning
+    const landTime = SETTLE_DELAY + animationDuration;
     const highlightTimer = setTimeout(() => {
       const taskWins = userConfidence > greenChipPercent;
       setSource(taskWins ? 'task' : 'lottery');
-    }, SETTLE_DELAY + animationDuration);
+    }, landTime);
     const endTimer = setTimeout(
       () => setPhase('decision'),
-      SETTLE_DELAY + animationDuration + 1000,
+      landTime + (fastMode ? 0 : 1000),
     );
     return () => {
       clearTimeout(highlightTimer);
       clearTimeout(endTimer);
     };
-  }, [phase, animationDuration, userConfidence, greenChipPercent]);
+  }, [phase, animationDuration, userConfidence, greenChipPercent, fastMode]);
 
   useEffect(() => {
     if (phase !== 'decision') return;
 
-    const revealTimer = setTimeout(() => setWinnerRevealed(true), FADE_DURATION);
+    const isLottery = source === 'lottery';
+    const fadeDur = fastMode && isLottery ? 200 : FADE_DURATION;
+    const posDur = fastMode && isLottery ? 400 : POSITION_DELAY;
 
-    if (source === 'task') {
+    const revealTimer = setTimeout(() => setWinnerRevealed(true), fadeDur);
+
+    if (!isLottery) {
       const revealResultTimer = setTimeout(() => {
         setCardRevealed(true);
         setWonReward(isUserCorrect);
         setPhase('feedback');
-      }, POSITION_DELAY);
+      }, posDur);
 
       return () => {
         clearTimeout(revealTimer);
         clearTimeout(revealResultTimer);
       };
     } else {
-      const resolveTimer = setTimeout(() => setPhase('resolving'), POSITION_DELAY);
+      const resolveTimer = setTimeout(() => setPhase('resolving'), posDur);
 
       return () => {
         clearTimeout(revealTimer);
         clearTimeout(resolveTimer);
       };
     }
-  }, [phase, source, isUserCorrect]);
+  }, [phase, source, isUserCorrect, fastMode]);
 
   useEffect(() => {
     if (phase !== 'feedback') return;
@@ -428,7 +440,8 @@ export const BDMReward = ({
                     displayPercent={
                       isComparing && liveLotteryFill ? indicatorPosition : greenChipPercent
                     }
-                    grayedOut={!liveLotteryFill && isComparing}
+                    grayedOut={!liveLotteryFill && source !== 'lottery'}
+                    fast={fastMode}
                     gridSize={chipGridSize}
                     state={
                       isComparing

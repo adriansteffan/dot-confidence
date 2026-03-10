@@ -119,6 +119,7 @@ const experiment = [
         isUserCorrect: data[data.length - 1]?.responseData?.correct ?? false,
         showConfidencePicker: CONDITION === 'simple',
         liveLotteryFill: false,
+        fastMode: true,
       }),
     },
   ]),
