@@ -297,10 +297,7 @@ export const BDMReward = ({
       const taskWins = userConfidence > greenChipPercent;
       setSource(taskWins ? 'task' : 'lottery');
     }, landTime);
-    const endTimer = setTimeout(
-      () => setPhase('decision'),
-      landTime + (fastMode ? 0 : 1000),
-    );
+    const endTimer = setTimeout(() => setPhase('decision'), landTime + (fastMode ? 0 : 1000));
     return () => {
       clearTimeout(highlightTimer);
       clearTimeout(endTimer);
@@ -461,7 +458,7 @@ export const BDMReward = ({
 
           {isFeedback && source === 'lottery' && (
             <p className='text-xl font-bold mt-12 text-gray-400'>
-              Your original answer would have been{' '}
+              Your answer would have been{' '}
               <span className={isUserCorrect ? 'text-green-400' : 'text-red-400'}>
                 {isUserCorrect ? 'correct' : 'incorrect'}
               </span>
