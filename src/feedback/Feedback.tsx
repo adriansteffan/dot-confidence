@@ -84,12 +84,14 @@ export const Feedback = ({
         {isPicking && 'How confident are you that your answer was correct?'}
         {isFeedback && !revealed && 'Revealing your result...'}
         {isFeedback &&
-          revealed &&
-          (isUserCorrect ? (
-            <span className='text-green-400'>CORRECT!</span>
-          ) : (
-            <span className='text-red-400'>INCORRECT</span>
-          ))}
+          revealed && (
+            <>
+              Your answer was{' '}
+              <span className={isUserCorrect ? 'text-green-400' : 'text-red-400'}>
+                {isUserCorrect ? 'CORRECT' : 'INCORRECT'}
+              </span>
+            </>
+          )}
       </h2>
 
       {isPicking && (
