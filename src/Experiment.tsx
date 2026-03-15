@@ -38,6 +38,12 @@ const NOISE_MOVEMENT = getParam(
 const KEY_LEFT = getParam('key_left', 'arrowleft', 'string', 'Key for leftward response');
 const KEY_RIGHT = getParam('key_right', 'arrowright', 'string', 'Key for rightward response');
 
+const KEY_LABELS: Record<string, string> = {
+  arrowleft: '←', arrowright: '→', arrowup: '↑', arrowdown: '↓',
+  ' ': 'Space', enter: 'Enter', tab: 'Tab',
+};
+const keyLabel = (key: string) => KEY_LABELS[key.toLowerCase()] ?? key.toUpperCase();
+
 const trialsPerCoherence = Math.floor(NTRIALS / COHERENCES.length);
 
 const experiment = [
@@ -110,6 +116,7 @@ const experiment = [
         coherence,
         direction,
         correctResponse,
+        responseHint: `Press ${keyLabel(KEY_LEFT)} or ${keyLabel(KEY_RIGHT)} to respond`,
       } as RDKProps,
     },
     {

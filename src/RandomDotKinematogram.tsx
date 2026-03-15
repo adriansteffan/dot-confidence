@@ -86,6 +86,7 @@ export interface RDKProps extends BaseComponentProps {
   showBorder?: boolean;
   borderWidth?: number;
   borderColor?: string;
+  responseHint?: string;
 }
 
 const randomBetween = (min: number, max: number): number => min + Math.random() * (max - min);
@@ -447,6 +448,7 @@ export const RandomDotKinematogram = ({
   showBorder = false,
   borderWidth = 1,
   borderColor = 'black',
+  responseHint,
 }: RDKProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // we need to track the dot animation frame id to cancel the animation on trial end / component unmount
@@ -903,6 +905,11 @@ export const RandomDotKinematogram = ({
   return (
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0 }}>
       <canvas ref={canvasRef} style={{ display: 'block', backgroundColor }} />
+      {responseHint && !stimulusVisible && !trialEnded && (
+        <div style={{ position: 'absolute', top: '60%', width: '100%', textAlign: 'center', color: 'white', fontSize: '1.25rem' }}>
+          {responseHint}
+        </div>
+      )}
     </div>
   );
 };

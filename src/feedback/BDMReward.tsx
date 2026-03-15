@@ -456,9 +456,9 @@ export const BDMReward = ({
             </motion.div>
           )}
 
-          {isFeedback && source === 'lottery' && (
+          {isFeedback && (
             <p className='text-xl font-bold mt-12 text-gray-400'>
-              Your answer would have been{' '}
+              Your answer {source === 'lottery' ? 'would have been' : 'was'}{' '}
               <span className={isUserCorrect ? 'text-green-400' : 'text-red-400'}>
                 {isUserCorrect ? 'correct' : 'incorrect'}
               </span>
