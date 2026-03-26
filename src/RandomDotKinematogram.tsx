@@ -1,4 +1,13 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
+import type { CSSProperties } from 'react';
 import { BaseComponentProps, shuffle } from '@adriansteffan/reactive';
 
 // this is assigned per dot
@@ -48,45 +57,6 @@ interface Aperture {
   wrap(x: number, y: number): [number, number];
   clip(ctx: CanvasRenderingContext2D): void;
   drawBorder(ctx: CanvasRenderingContext2D, color: string, lineWidth: number): void;
-}
-
-export interface RDKProps extends BaseComponentProps {
-  validKeys?: string[];
-  correctResponse?: string | string[];
-  duration?: number;
-  stimulusDuration?: number; // How long to show stimulus (defaults to duration)
-  responseEndsTrial?: boolean;
-  dotCount?: number;
-  dotSetCount?: number;
-  direction?: number;
-  coherence?: number;
-  opposite?: number;
-  speed?: number;
-  dotLifetime?: number;
-  updateRate?: number;
-  dotRadius?: number;
-  dotCharacter?: string;
-  dotColor?: string;
-  coherentDotColor?: string;
-  backgroundColor?: string;
-  apertureShape?: ApertureShape;
-  apertureWidth?: number;
-  apertureHeight?: number;
-  apertureCenterX?: number;
-  apertureCenterY?: number;
-  reinsertMode?: ReinsertType;
-  noiseMovement?: NoiseMovement;
-  reassignEveryMs?: number; // undefined = never, 0 = every update, > 0 = every X ms
-  showFixation?: boolean;
-  fixationTime?: number;
-  fixationWidth?: number;
-  fixationHeight?: number;
-  fixationColor?: string;
-  fixationThickness?: number;
-  showBorder?: boolean;
-  borderWidth?: number;
-  borderColor?: string;
-  responseHint?: string;
 }
 
 const randomBetween = (min: number, max: number): number => min + Math.random() * (max - min);
@@ -404,6 +374,435 @@ const updateDot = (
   return updated;
 };
 
+// ─── Standalone RDK Canvas ─────────────────────────────────────────────────────
+
+export interface RDKCanvasProps {
+  width: number;
+  height: number;
+  dotCount?: number;
+  dotSetCount?: number;
+  direction?: number;
+  coherence?: number;
+  opposite?: number;
+  speed?: number;
+  dotLifetime?: number;
+  updateRate?: number;
+  dotRadius?: number;
+  dotCharacter?: string;
+  dotColor?: string;
+  coherentDotColor?: string;
+  backgroundColor?: string;
+  apertureShape?: ApertureShape;
+  apertureWidth?: number;
+  apertureHeight?: number;
+  apertureCenterX?: number;
+  apertureCenterY?: number;
+  reinsertMode?: ReinsertType;
+  noiseMovement?: NoiseMovement;
+  reassignEveryMs?: number;
+  showFixation?: boolean;
+  fixationWidth?: number;
+  fixationHeight?: number;
+  fixationColor?: string;
+  fixationThickness?: number;
+  showBorder?: boolean;
+  borderWidth?: number;
+  borderColor?: string;
+  /** When true (default), dots are animated and visible. When false, only background (+ fixation if enabled) is shown. */
+  active?: boolean;
+  /** Seed the refresh-rate estimator (e.g. from a prior calibration). */
+  initialRefreshRate?: number;
+  style?: CSSProperties;
+  className?: string;
+}
+
+export interface RDKCanvasHandle {
+  getStats: () => { framesDisplayed: number; measuredRefreshRate: number | null };
+}
+
+export const RDKCanvas = forwardRef<RDKCanvasHandle, RDKCanvasProps>(
+  (
+    {
+      width,
+      height,
+      dotCount = 300,
+      dotSetCount = 1,
+      direction = 0,
+      coherence = 0.5,
+      opposite = 0,
+      speed = 60,
+      dotLifetime = -1,
+      updateRate,
+      dotRadius = 2,
+      dotCharacter,
+      dotColor = 'white',
+      coherentDotColor,
+      backgroundColor = 'gray',
+      apertureShape = 'ellipse',
+      apertureWidth = 600,
+      apertureHeight = 400,
+      apertureCenterX,
+      apertureCenterY,
+      reinsertMode = 'opposite',
+      noiseMovement = 'randomDirection',
+      reassignEveryMs,
+      showFixation = false,
+      fixationWidth = 15,
+      fixationHeight = 15,
+      fixationColor = 'white',
+      fixationThickness = 2,
+      showBorder = false,
+      borderWidth = 1,
+      borderColor = 'black',
+      active = true,
+      initialRefreshRate,
+      style,
+      className,
+    },
+    ref,
+  ) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const animationRef = useRef<number>();
+    const lastUpdateTimeRef = useRef<number>();
+    const lastFrameTimeRef = useRef<number>();
+    const timeSinceReassignRef = useRef(0);
+    const frameCountRef = useRef(0);
+
+    // Refresh rate estimation
+    const frameIntervalsRef = useRef<number[]>([]);
+    const estimatedFrameIntervalRef = useRef<number | null>(null);
+    const isCalibrated = useRef(false);
+
+    // Default aperture center to canvas center
+    const effectiveCenterX = apertureCenterX ?? width / 2;
+    const effectiveCenterY = apertureCenterY ?? height / 2;
+
+    const aperture = useMemo(
+      () =>
+        createAperture(
+          apertureShape,
+          apertureWidth,
+          apertureHeight,
+          effectiveCenterX,
+          effectiveCenterY,
+        ),
+      [apertureShape, apertureWidth, apertureHeight, effectiveCenterX, effectiveCenterY],
+    );
+
+    // Unit vector for coherent direction (0=up, 90=right, 180=down, 270=left)
+    const coherentDir = useMemo((): [number, number] => {
+      const dirRad = ((90 - direction) * Math.PI) / 180;
+      return [Math.cos(dirRad), -Math.sin(dirRad)];
+    }, [direction]);
+
+    const dotSetsRef = useRef<Dot[][]>([]);
+    const currentSetRef = useRef(0);
+
+    // Initialize dots
+    useEffect(() => {
+      const nCoherent = Math.floor(dotCount * coherence);
+      const nOpposite = Math.floor(dotCount * opposite);
+
+      dotSetsRef.current = Array.from({ length: dotSetCount }, () =>
+        Array.from({ length: dotCount }, (_, i) => {
+          let assignedMovement: FrameMovement;
+          if (i < nCoherent) assignedMovement = 'coherent';
+          else if (i < nCoherent + nOpposite) assignedMovement = 'opposite';
+          else assignedMovement = noiseMovement;
+
+          return createDot(assignedMovement, dotLifetime, aperture);
+        }),
+      );
+    }, []);
+
+    // Seed refresh rate estimate
+    useEffect(() => {
+      if (
+        typeof initialRefreshRate === 'number' &&
+        initialRefreshRate >= 20 &&
+        initialRefreshRate <= 300
+      ) {
+        estimatedFrameIntervalRef.current = 1000 / initialRefreshRate;
+        isCalibrated.current = true;
+      }
+    }, [initialRefreshRate]);
+
+    // Expose stats via ref
+    useImperativeHandle(ref, () => ({
+      getStats: () => ({
+        framesDisplayed: frameCountRef.current,
+        measuredRefreshRate: estimatedFrameIntervalRef.current
+          ? Math.round(1000 / estimatedFrameIntervalRef.current)
+          : null,
+      }),
+    }));
+
+    // Drawing functions
+    const drawDots = useCallback(
+      (ctx: CanvasRenderingContext2D, dots: Dot[]) => {
+        dots.forEach((dot) => {
+          const color =
+            coherentDotColor && dot.assignedMovement === 'coherent' ? coherentDotColor : dotColor;
+          ctx.fillStyle = color;
+
+          if (dotCharacter) {
+            const fontSize = dotRadius * 2.5;
+            ctx.font = `${fontSize}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(dotCharacter, dot.x, dot.y);
+          } else {
+            ctx.beginPath();
+            ctx.arc(dot.x, dot.y, dotRadius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        });
+      },
+      [dotColor, coherentDotColor, dotRadius, dotCharacter],
+    );
+
+    const drawFixation = useCallback(
+      (ctx: CanvasRenderingContext2D, cx: number, cy: number) => {
+        if (!showFixation) return;
+
+        ctx.fillStyle = fixationColor;
+
+        ctx.fillRect(
+          cx - fixationWidth,
+          cy - fixationThickness / 2,
+          fixationWidth * 2,
+          fixationThickness,
+        );
+
+        ctx.fillRect(
+          cx - fixationThickness / 2,
+          cy - fixationHeight,
+          fixationThickness,
+          fixationHeight * 2,
+        );
+      },
+      [showFixation, fixationColor, fixationThickness, fixationWidth, fixationHeight],
+    );
+
+    const drawBorder = useCallback(
+      (ctx: CanvasRenderingContext2D) => {
+        if (!showBorder) return;
+        aperture.drawBorder(ctx, borderColor, borderWidth);
+      },
+      [showBorder, borderColor, borderWidth, aperture],
+    );
+
+    // Animation loop
+    const animate = useCallback(
+      (timestamp: number) => {
+        const canvas = canvasRef.current;
+        const ctx = canvas?.getContext('2d');
+        if (!canvas || !ctx) return;
+
+        if (lastUpdateTimeRef.current === undefined) {
+          lastUpdateTimeRef.current = timestamp;
+        }
+        if (lastFrameTimeRef.current === undefined) {
+          lastFrameTimeRef.current = timestamp;
+        }
+
+        const frameDelta = timestamp - lastFrameTimeRef.current;
+        lastFrameTimeRef.current = timestamp;
+        frameCountRef.current++;
+
+        // Update refresh rate estimate
+        if (frameDelta > 0 && frameDelta < 500) {
+          if (!isCalibrated.current) {
+            frameIntervalsRef.current.push(frameDelta);
+            if (frameIntervalsRef.current.length >= CALIBRATION_FRAME_COUNT) {
+              const sorted = [...frameIntervalsRef.current].sort((a, b) => a - b);
+              const mid = Math.floor(sorted.length / 2);
+              estimatedFrameIntervalRef.current =
+                sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+              isCalibrated.current = true;
+            }
+          } else {
+            estimatedFrameIntervalRef.current =
+              EMA_ALPHA * frameDelta + (1 - EMA_ALPHA) * estimatedFrameIntervalRef.current!;
+          }
+        }
+
+        const timeSinceLastUpdate = timestamp - (lastUpdateTimeRef.current ?? timestamp);
+        const updateInterval = updateRate && updateRate > 0 ? 1000 / updateRate : 0;
+        const shouldUpdate = !updateRate || updateRate <= 0 || timeSinceLastUpdate >= updateInterval;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Fill only the aperture area with background color
+        ctx.save();
+        aperture.clip(ctx);
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        if (!active) {
+          drawFixation(ctx, aperture.centerX, aperture.centerY);
+        } else {
+          if (shouldUpdate) {
+            const distance = (speed * timeSinceLastUpdate) / 1000;
+
+            // Determine if we should reassign dots
+            let shouldReassign = false;
+            if (reassignEveryMs !== undefined) {
+              if (reassignEveryMs === 0) {
+                shouldReassign = true;
+              } else {
+                timeSinceReassignRef.current += timeSinceLastUpdate;
+                const halfFrameCorrection =
+                  isCalibrated.current && estimatedFrameIntervalRef.current
+                    ? estimatedFrameIntervalRef.current * 0.5
+                    : 0;
+                const correctedTime = timeSinceReassignRef.current + halfFrameCorrection;
+                shouldReassign = correctedTime >= reassignEveryMs;
+                if (shouldReassign) {
+                  timeSinceReassignRef.current %= reassignEveryMs;
+                }
+              }
+            }
+
+            const reassignments = shouldReassign
+              ? generateShuffledAssignments(dotCount, coherence, opposite, noiseMovement)
+              : null;
+
+            const currentSet = dotSetsRef.current[currentSetRef.current];
+            const updatedDots = currentSet.map((dot, i) =>
+              updateDot(
+                dot,
+                distance,
+                timeSinceLastUpdate,
+                dotLifetime,
+                aperture,
+                reinsertMode,
+                dotRadius,
+                coherentDir,
+                reassignments?.[i],
+              ),
+            );
+            dotSetsRef.current[currentSetRef.current] = updatedDots;
+
+            currentSetRef.current = (currentSetRef.current + 1) % dotSetCount;
+            lastUpdateTimeRef.current = timestamp;
+          }
+
+          const currentDots = dotSetsRef.current[currentSetRef.current];
+          ctx.save();
+          aperture.clip(ctx);
+          drawDots(ctx, currentDots);
+          ctx.restore();
+
+          ctx.save();
+          ctx.beginPath();
+          drawFixation(ctx, aperture.centerX, aperture.centerY);
+          drawBorder(ctx);
+          ctx.restore();
+        }
+
+        animationRef.current = requestAnimationFrame(animate);
+      },
+      [
+        active,
+        backgroundColor,
+        noiseMovement,
+        coherence,
+        opposite,
+        dotCount,
+        speed,
+        dotLifetime,
+        aperture,
+        reinsertMode,
+        dotSetCount,
+        dotRadius,
+        coherentDir,
+        updateRate,
+        drawDots,
+        drawFixation,
+        drawBorder,
+        reassignEveryMs,
+      ],
+    );
+
+    // Start animation
+    useEffect(() => {
+      animationRef.current = requestAnimationFrame(animate);
+      return () => {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+        }
+      };
+    }, [animate]);
+
+    // Setup canvas with retina display support
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(dpr, dpr);
+      }
+    }, [width, height]);
+
+    return (
+      <canvas
+        ref={canvasRef}
+        style={{ display: 'block', ...style }}
+        className={className}
+      />
+    );
+  },
+);
+
+// ─── Trial Component ────────────────────────────────────────────────────────────
+
+export interface RDKProps extends BaseComponentProps {
+  validKeys?: string[];
+  correctResponse?: string | string[];
+  duration?: number;
+  stimulusDuration?: number; // How long to show stimulus (defaults to duration)
+  responseEndsTrial?: boolean;
+  dotCount?: number;
+  dotSetCount?: number;
+  direction?: number;
+  coherence?: number;
+  opposite?: number;
+  speed?: number;
+  dotLifetime?: number;
+  updateRate?: number;
+  dotRadius?: number;
+  dotCharacter?: string;
+  dotColor?: string;
+  coherentDotColor?: string;
+  backgroundColor?: string;
+  apertureShape?: ApertureShape;
+  apertureWidth?: number;
+  apertureHeight?: number;
+  apertureCenterX?: number;
+  apertureCenterY?: number;
+  reinsertMode?: ReinsertType;
+  noiseMovement?: NoiseMovement;
+  reassignEveryMs?: number; // undefined = never, 0 = every update, > 0 = every X ms
+  showFixation?: boolean;
+  fixationTime?: number;
+  fixationWidth?: number;
+  fixationHeight?: number;
+  fixationColor?: string;
+  fixationThickness?: number;
+  showBorder?: boolean;
+  borderWidth?: number;
+  borderColor?: string;
+  responseHint?: string;
+}
+
 export const RandomDotKinematogram = ({
   next,
   store,
@@ -450,21 +849,9 @@ export const RandomDotKinematogram = ({
   borderColor = 'black',
   responseHint,
 }: RDKProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  // we need to track the dot animation frame id to cancel the animation on trial end / component unmount
-  const animationRef = useRef<number>();
-  const startTimeRef = useRef<number>();
-  const lastUpdateTimeRef = useRef<number>();
-  const lastFrameTimeRef = useRef<number>(); // For tracking frame delta (independent of update rate)
-  const timeSinceReassignRef = useRef(0);
-  const frameCountRef = useRef(0); // Count total frames rendered
-  const stimulusHiddenRef = useRef(false); // Ensures stimulus hiding only triggers once
-  const trialEndedRef = useRef(false); // Ensures trial end only triggers once
-
-  // Refresh rate estimation for timing correction
-  const frameIntervalsRef = useRef<number[]>([]);
-  const estimatedFrameIntervalRef = useRef<number | null>(null);
-  const isCalibrated = useRef(false);
+  const canvasHandle = useRef<RDKCanvasHandle>(null);
+  const startTimeRef = useRef<number>(performance.now());
+  const trialEndedRef = useRef(false);
 
   const [response, setResponse] = useState<string | null>(null);
   const [responseTime, setResponseTime] = useState<number | null>(null);
@@ -472,278 +859,34 @@ export const RandomDotKinematogram = ({
   const [fixationComplete, setFixationComplete] = useState(fixationTime <= 0);
   const [stimulusVisible, setStimulusVisible] = useState(true);
 
-  const aperture = useMemo(
-    () =>
-      createAperture(
-        apertureShape,
-        apertureWidth,
-        apertureHeight,
-        apertureCenterX,
-        apertureCenterY,
-      ),
-    [apertureShape, apertureWidth, apertureHeight, apertureCenterX, apertureCenterY],
-  );
+  const initialRefreshRate = store?._reactiveScreenRefreshRate;
 
-  // Unit vector for coherent direction (0=up, 90=right, 180=down, 270=left)
-  const coherentDir = useMemo((): [number, number] => {
-    const dirRad = ((90 - direction) * Math.PI) / 180;
-    return [Math.cos(dirRad), -Math.sin(dirRad)];
-  }, [direction]);
-
-  const dotSetsRef = useRef<Dot[][]>([]);
-  const currentSetRef = useRef(0);
-
+  // Fixation duration delay before showing dots
   useEffect(() => {
-    const nCoherent = Math.floor(dotCount * coherence);
-    const nOpposite = Math.floor(dotCount * opposite);
+    if (fixationTime <= 0) return;
+    const timer = setTimeout(() => setFixationComplete(true), fixationTime);
+    return () => clearTimeout(timer);
+  }, [fixationTime]);
 
-    dotSetsRef.current = Array.from({ length: dotSetCount }, () =>
-      Array.from({ length: dotCount }, (_, i) => {
-        let assignedMovement: FrameMovement;
-        if (i < nCoherent) assignedMovement = 'coherent';
-        else if (i < nCoherent + nOpposite) assignedMovement = 'opposite';
-        else assignedMovement = noiseMovement;
-
-        return createDot(assignedMovement, dotLifetime, aperture);
-      }),
-    );
-  }, []);
-
-  // Initialize refresh rate estimate from store if available
+  // Stimulus duration timer
   useEffect(() => {
-    const refreshRate = store?._reactiveScreenRefreshRate;
-    if (typeof refreshRate === 'number' && refreshRate >= 20 && refreshRate <= 300) {
-      estimatedFrameIntervalRef.current = 1000 / refreshRate;
-      isCalibrated.current = true;
-    }
-  }, [store]);
+    const effectiveStimDur = stimulusDuration ?? duration;
+    if (effectiveStimDur <= 0) return;
+    const timer = setTimeout(() => setStimulusVisible(false), fixationTime + effectiveStimDur);
+    return () => clearTimeout(timer);
+  }, [fixationTime, stimulusDuration, duration]);
 
-  // Drawing functions
-  const drawDots = useCallback(
-    (ctx: CanvasRenderingContext2D, dots: Dot[]) => {
-      dots.forEach((dot) => {
-        // Use coherent color if specified and dot is coherent, otherwise use default color
-        const color =
-          coherentDotColor && dot.assignedMovement === 'coherent' ? coherentDotColor : dotColor;
-        ctx.fillStyle = color;
-
-        if (dotCharacter) {
-          // Draw character
-          const fontSize = dotRadius * 2.5; // Scale font size to approximate circle size
-          ctx.font = `${fontSize}px monospace`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(dotCharacter, dot.x, dot.y);
-        } else {
-          // Draw circle
-          ctx.beginPath();
-          ctx.arc(dot.x, dot.y, dotRadius, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      });
-    },
-    [dotColor, coherentDotColor, dotRadius, dotCharacter],
-  );
-
-  const drawFixation = useCallback(
-    (ctx: CanvasRenderingContext2D, cx: number, cy: number) => {
-      if (!showFixation) return;
-
-      ctx.fillStyle = fixationColor;
-
-      ctx.fillRect(
-        cx - fixationWidth,
-        cy - fixationThickness / 2,
-        fixationWidth * 2,
-        fixationThickness,
-      );
-
-      ctx.fillRect(
-        cx - fixationThickness / 2,
-        cy - fixationHeight,
-        fixationThickness,
-        fixationHeight * 2,
-      );
-    },
-    [showFixation, fixationColor, fixationThickness, fixationWidth, fixationHeight],
-  );
-
-  const drawBorder = useCallback(
-    (ctx: CanvasRenderingContext2D) => {
-      if (!showBorder) return;
-      aperture.drawBorder(ctx, borderColor, borderWidth);
-    },
-    [showBorder, borderColor, borderWidth, aperture],
-  );
-
-  // Animation loop
-  const animate = useCallback(
-    (timestamp: number) => {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (!canvas || !ctx || trialEnded) return;
-
-      if (lastUpdateTimeRef.current === undefined) {
-        lastUpdateTimeRef.current = timestamp;
+  // Trial duration timer
+  useEffect(() => {
+    if (duration <= 0) return;
+    const timer = setTimeout(() => {
+      if (!trialEndedRef.current) {
+        trialEndedRef.current = true;
+        setTrialEnded(true);
       }
-      if (lastFrameTimeRef.current === undefined) {
-        lastFrameTimeRef.current = timestamp;
-      }
-
-      // Calculate frame delta every frame, independent of update rate
-      const frameDelta = timestamp - lastFrameTimeRef.current;
-      lastFrameTimeRef.current = timestamp;
-      frameCountRef.current++;
-
-      // Update refresh rate estimate (for timing correction)
-      // Sanity check: ignore huge gaps (tab switching, etc.) and zero/negative deltas
-      if (frameDelta > 0 && frameDelta < 500) {
-        if (!isCalibrated.current) {
-          // Calibration phase: collect frame intervals
-          frameIntervalsRef.current.push(frameDelta);
-          if (frameIntervalsRef.current.length >= CALIBRATION_FRAME_COUNT) {
-            // Calculate rough median (better robustness against outliers)
-            const sorted = [...frameIntervalsRef.current].sort((a, b) => a - b);
-            const mid = Math.floor(sorted.length / 2);
-            estimatedFrameIntervalRef.current =
-              sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-            isCalibrated.current = true;
-          }
-        } else {
-          // Continuous update with exponential moving average
-          estimatedFrameIntervalRef.current =
-            EMA_ALPHA * frameDelta + (1 - EMA_ALPHA) * estimatedFrameIntervalRef.current!;
-        }
-      }
-
-      // Check trial timing
-      if (startTimeRef.current !== undefined) {
-        const elapsed = timestamp - startTimeRef.current;
-        const halfFrameCorrection =
-          isCalibrated.current && estimatedFrameIntervalRef.current
-            ? estimatedFrameIntervalRef.current * 0.5
-            : 0;
-        const correctedElapsed = elapsed + halfFrameCorrection;
-
-        // Hide stimulus after fixationTime + stimulusDuration
-        const effectiveStimulusDuration = fixationTime + (stimulusDuration ?? duration);
-        if (
-          effectiveStimulusDuration > 0 &&
-          !stimulusHiddenRef.current &&
-          correctedElapsed >= effectiveStimulusDuration
-        ) {
-          stimulusHiddenRef.current = true;
-          setStimulusVisible(false);
-        }
-
-        // End trial after fixationTime + duration
-        const totalDuration = fixationTime + duration;
-        if (duration > 0 && !trialEndedRef.current && correctedElapsed >= totalDuration) {
-          trialEndedRef.current = true;
-          setTrialEnded(true);
-        }
-      }
-
-      const timeSinceLastUpdate = timestamp - (lastUpdateTimeRef.current ?? timestamp);
-      const updateInterval = updateRate && updateRate > 0 ? 1000 / updateRate : 0;
-      const shouldUpdate = !updateRate || updateRate <= 0 || timeSinceLastUpdate >= updateInterval;
-
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      if (!stimulusVisible || !fixationComplete) {
-        drawFixation(ctx, aperture.centerX, aperture.centerY);
-      } else {
-        if (shouldUpdate) {
-          const distance = (speed * timeSinceLastUpdate) / 1000;
-
-          // Determine if we should reassign dots
-          let shouldReassign = false;
-          if (reassignEveryMs !== undefined) {
-            if (reassignEveryMs === 0) {
-              shouldReassign = true;
-            } else {
-              timeSinceReassignRef.current += timeSinceLastUpdate;
-              // Half-frame correction rounds to nearest frame rather than always late
-              const halfFrameCorrection =
-                isCalibrated.current && estimatedFrameIntervalRef.current
-                  ? estimatedFrameIntervalRef.current * 0.5
-                  : 0;
-              const correctedTime = timeSinceReassignRef.current + halfFrameCorrection;
-              shouldReassign = correctedTime >= reassignEveryMs;
-              if (shouldReassign) {
-                timeSinceReassignRef.current %= reassignEveryMs;
-              }
-            }
-          }
-
-          // Generate shuffled assignments if reassigning (exact counts)
-          const reassignments = shouldReassign
-            ? generateShuffledAssignments(dotCount, coherence, opposite, noiseMovement)
-            : null;
-
-          const currentSet = dotSetsRef.current[currentSetRef.current];
-          const updatedDots = currentSet.map((dot, i) =>
-            updateDot(
-              dot,
-              distance,
-              timeSinceLastUpdate,
-              dotLifetime,
-              aperture,
-              reinsertMode,
-              dotRadius,
-              coherentDir,
-              reassignments?.[i],
-            ),
-          );
-          dotSetsRef.current[currentSetRef.current] = updatedDots;
-
-          // Cycle to next set if there is more than one set of dots
-          currentSetRef.current = (currentSetRef.current + 1) % dotSetCount;
-          lastUpdateTimeRef.current = timestamp;
-        }
-
-        const currentDots = dotSetsRef.current[currentSetRef.current];
-        ctx.save();
-        aperture.clip(ctx);
-        drawDots(ctx, currentDots);
-
-        ctx.restore();
-
-        ctx.save();
-        ctx.beginPath();
-        drawFixation(ctx, aperture.centerX, aperture.centerY);
-        drawBorder(ctx);
-        ctx.restore();
-      }
-
-      animationRef.current = requestAnimationFrame(animate);
-    },
-    [
-      trialEnded,
-      stimulusVisible,
-      backgroundColor,
-      noiseMovement,
-      coherence,
-      opposite,
-      dotCount,
-      speed,
-      dotLifetime,
-      aperture,
-      reinsertMode,
-      dotSetCount,
-      dotRadius,
-      coherentDir,
-      updateRate,
-      duration,
-      stimulusDuration,
-      drawDots,
-      drawFixation,
-      drawBorder,
-      fixationComplete,
-      fixationTime,
-    ],
-  );
+    }, fixationTime + duration);
+    return () => clearTimeout(timer);
+  }, [fixationTime, duration]);
 
   // Handle keyboard response
   useEffect(() => {
@@ -754,11 +897,12 @@ export const RandomDotKinematogram = ({
       const allowedKeys = validKeys.length > 0 ? validKeys.map((c) => c.toLowerCase()) : null;
 
       if (!allowedKeys || allowedKeys.includes(key)) {
-        const rt = performance.now() - (startTimeRef.current ?? 0);
+        const rt = performance.now() - startTimeRef.current;
         setResponse(key);
         setResponseTime(rt);
 
         if (responseEndsTrial) {
+          trialEndedRef.current = true;
           setTrialEnded(true);
         }
       }
@@ -768,32 +912,11 @@ export const RandomDotKinematogram = ({
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [trialEnded, response, validKeys, responseEndsTrial]);
 
-  // Start animation and timer
-  useEffect(() => {
-    startTimeRef.current = performance.now();
-    animationRef.current = requestAnimationFrame(animate);
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [animate]);
-
-  // Fixation duration delay before showing dots
-  useEffect(() => {
-    if (fixationTime <= 0) return;
-    const timer = setTimeout(() => setFixationComplete(true), fixationTime);
-    return () => clearTimeout(timer);
-  }, [fixationTime]);
-
   // End trial and return data
   useEffect(() => {
     if (!trialEnded) return;
 
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
+    const stats = canvasHandle.current?.getStats();
 
     const correctKeys = Array.isArray(correctResponse)
       ? correctResponse.map((c) => c.toLowerCase())
@@ -801,18 +924,13 @@ export const RandomDotKinematogram = ({
         ? [correctResponse.toLowerCase()]
         : null;
 
-    const framesDisplayed = frameCountRef.current;
-    const measuredRefreshRate = estimatedFrameIntervalRef.current
-      ? Math.round(1000 / estimatedFrameIntervalRef.current)
-      : null;
-
     const data = {
       // Response data
       rt: responseTime,
       response,
       correct: response && correctKeys ? correctKeys.includes(response) : null,
-      framesDisplayed,
-      measuredRefreshRate,
+      framesDisplayed: stats?.framesDisplayed ?? 0,
+      measuredRefreshRate: stats?.measuredRefreshRate ?? null,
 
       // Trial control
       validKeys,
@@ -885,28 +1003,55 @@ export const RandomDotKinematogram = ({
     reassignEveryMs,
   ]);
 
-  // Setup canvas with retina display support
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // retina fix
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = window.innerWidth * dpr;
-    canvas.height = window.innerHeight * dpr;
-    canvas.style.width = `${window.innerWidth}px`;
-    canvas.style.height = `${window.innerHeight}px`;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(dpr, dpr);
-    }
-  }, []);
-
   return (
-    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0 }}>
-      <canvas ref={canvasRef} style={{ display: 'block', backgroundColor }} />
+    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', margin: 0, padding: 0, backgroundColor }}>
+      <RDKCanvas
+        ref={canvasHandle}
+        width={window.innerWidth}
+        height={window.innerHeight}
+        active={fixationComplete && stimulusVisible}
+        initialRefreshRate={initialRefreshRate}
+        dotCount={dotCount}
+        dotSetCount={dotSetCount}
+        direction={direction}
+        coherence={coherence}
+        opposite={opposite}
+        speed={speed}
+        dotLifetime={dotLifetime}
+        updateRate={updateRate}
+        dotRadius={dotRadius}
+        dotCharacter={dotCharacter}
+        dotColor={dotColor}
+        coherentDotColor={coherentDotColor}
+        backgroundColor={backgroundColor}
+        apertureShape={apertureShape}
+        apertureWidth={apertureWidth}
+        apertureHeight={apertureHeight}
+        apertureCenterX={apertureCenterX}
+        apertureCenterY={apertureCenterY}
+        reinsertMode={reinsertMode}
+        noiseMovement={noiseMovement}
+        reassignEveryMs={reassignEveryMs}
+        showFixation={showFixation}
+        fixationWidth={fixationWidth}
+        fixationHeight={fixationHeight}
+        fixationColor={fixationColor}
+        fixationThickness={fixationThickness}
+        showBorder={showBorder}
+        borderWidth={borderWidth}
+        borderColor={borderColor}
+      />
       {responseHint && !stimulusVisible && !trialEnded && (
-        <div style={{ position: 'absolute', top: '60%', width: '100%', textAlign: 'center', color: 'white', fontSize: '1.25rem' }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: '60%',
+            width: '100%',
+            textAlign: 'center',
+            color: 'white',
+            fontSize: '1.25rem',
+          }}
+        >
           {responseHint}
         </div>
       )}

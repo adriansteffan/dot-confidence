@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ExperimentRunner, ExperimentConfig, getParam, shuffle } from '@adriansteffan/reactive';
-import { RandomDotKinematogram, RDKProps, NoiseMovement } from './RandomDotKinematogram';
+import { RandomDotKinematogram, RDKCanvas, RDKProps, NoiseMovement } from './RandomDotKinematogram';
 import { Feedback, BDMReward } from './feedback';
 
 const config: ExperimentConfig = { showProgressBar: false };
@@ -39,8 +39,13 @@ const KEY_LEFT = getParam('key_left', 'arrowleft', 'string', 'Key for leftward r
 const KEY_RIGHT = getParam('key_right', 'arrowright', 'string', 'Key for rightward response');
 
 const KEY_LABELS: Record<string, string> = {
-  arrowleft: '←', arrowright: '→', arrowup: '↑', arrowdown: '↓',
-  ' ': 'Space', enter: 'Enter', tab: 'Tab',
+  arrowleft: '←',
+  arrowright: '→',
+  arrowup: '↑',
+  arrowdown: '↓',
+  ' ': 'Space',
+  enter: 'Enter',
+  tab: 'Tab',
 };
 const keyLabel = (key: string) => KEY_LABELS[key.toLowerCase()] ?? key.toUpperCase();
 
@@ -56,21 +61,45 @@ const experiment = [
       containerClass: BG_CLASS,
       className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
       content: (
-        <>
-          <h1 className='text-4xl text-[#f5f5f5]'>
+        <div className='text-[#f5f5f5]'>
+          <h1 className='text-4xl'>
             <strong>Instructions</strong>
           </h1>
           <br />
-          <p className='text-[#f5f5f5]'>Placeholder until we settle on the details.</p>
-          <p className='text-[#f5f5f5]'>You will see dots moving on the screen.</p>
-          <p className='text-[#f5f5f5]'>
-            Press <strong>LEFT ARROW</strong> if dots move left, <strong>RIGHT ARROW</strong> if
-            dots move right.
+          <p>
+            You will see a cloud of dots like the one below. Some dots move together in one
+            direction, while the rest move randomly.
           </p>
-          <p className='text-[#f5f5f5]'>
-            After each trial, you'll rate your confidence or receive feedback.
+          <div className='flex justify-center my-4'>
+            <RDKCanvas
+              width={300}
+              height={300}
+              apertureWidth={250}
+              apertureHeight={250}
+              apertureShape='circle'
+              coherence={0.5}
+              direction={90}
+              dotCount={NDOTS / 1.5}
+              speed={DOTSPEED / 2}
+              dotRadius={2}
+              dotColor='white'
+              dotLifetime={DOTLIFETIME}
+              noiseMovement={NOISE_MOVEMENT}
+              backgroundColor='#21294b'
+              showBorder
+              borderColor='white'
+              reinsertMode='opposite'
+            />
+          </div>
+          <p>
+            Your job is to decide whether the dots are moving <strong>left</strong> or{' '}
+            <strong>right</strong>.
           </p>
-        </>
+          <p>
+            Press <strong>{keyLabel(KEY_LEFT)}</strong> if dots move left,{' '}
+            <strong>{keyLabel(KEY_RIGHT)}</strong> if dots move right.
+          </p>
+        </div>
       ),
     },
   },
