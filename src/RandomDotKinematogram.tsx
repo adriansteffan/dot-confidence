@@ -627,7 +627,9 @@ export const RDKCanvas = forwardRef<RDKCanvasHandle, RDKCanvasProps>(
           }
         }
 
-        const timeSinceLastUpdate = timestamp - (lastUpdateTimeRef.current ?? timestamp);
+        const rawTimeSinceLastUpdate = timestamp - (lastUpdateTimeRef.current ?? timestamp);
+        // Cap delta to avoid massive jumps when returning from a backgrounded tab
+        const timeSinceLastUpdate = Math.min(rawTimeSinceLastUpdate, 100);
         const updateInterval = updateRate && updateRate > 0 ? 1000 / updateRate : 0;
         const shouldUpdate = !updateRate || updateRate <= 0 || timeSinceLastUpdate >= updateInterval;
 
