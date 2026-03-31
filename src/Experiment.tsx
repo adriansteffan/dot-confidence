@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect, ComponentProps } from 'react';
 import { ExperimentRunner, ExperimentConfig, getParam, shuffle } from '@adriansteffan/reactive';
 import { RandomDotKinematogram, RDKCanvas, RDKProps, NoiseMovement } from './RandomDotKinematogram';
 import { Feedback, BDMReward } from './feedback';
+import { Tutorial, useTutorialSlide } from './Tutorial';
 
 const config: ExperimentConfig = { showProgressBar: false };
 
@@ -49,58 +51,122 @@ const KEY_LABELS: Record<string, string> = {
 };
 const keyLabel = (key: string) => KEY_LABELS[key.toLowerCase()] ?? key.toUpperCase();
 
+/** Reusable small RDK for tutorial slides. Accepts overrides for any RDKCanvas prop. */
+const DemoRDK = (props: Partial<ComponentProps<typeof RDKCanvas>>) => (
+  <RDKCanvas
+    width={300}
+    height={300}
+    apertureWidth={250}
+    apertureHeight={250}
+    apertureShape='circle'
+    coherence={0.5}
+    direction={90}
+    dotCount={NDOTS / 1.5}
+    speed={DOTSPEED / 2}
+    dotRadius={2}
+    dotColor='white'
+    dotLifetime={DOTLIFETIME}
+    noiseMovement={NOISE_MOVEMENT}
+    backgroundColor='#21294b'
+    showBorder
+    borderColor='white'
+    reinsertMode='opposite'
+    {...props}
+  />
+);
+
+const PracticeSlide = ({ direction }: { direction: 'left' | 'right' }) => {
+  const { unlock } = useTutorialSlide({ locked: true });
+  const [answer, setAnswer] = useState<string | null>(null);
+  const correctKey = direction === 'left' ? KEY_LEFT : KEY_RIGHT;
+  const correct = answer === correctKey;
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (key === KEY_LEFT || key === KEY_RIGHT) {
+        e.preventDefault();
+        setAnswer(key);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    if (correct) unlock();
+  }, [correct, unlock]);
+
+  return (
+    <div className='text-[#f5f5f5] flex flex-col items-center gap-4'>
+      <p>
+        Which direction are the dots moving? Press {keyLabel(KEY_LEFT)} or {keyLabel(KEY_RIGHT)}
+      </p>
+      <div className='relative'>
+        <DemoRDK
+          coherence={0.8}
+          direction={direction === 'left' ? 270 : 90}
+          coherentDotColor={correct ? '#22c55e' : undefined}
+        />
+        {answer && (
+          <p className='absolute -bottom-8 left-0 right-0 text-center text-lg font-bold'>
+            {correct ? 'Correct!' : 'Try again!'}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const trialsPerCoherence = Math.floor(NTRIALS / COHERENCES.length);
 
 const experiment = [
   {
-    name: 'intro',
-    type: 'Text',
+    name: 'tutorial',
+    type: 'Tutorial',
     props: {
-      buttonText: 'Start',
-      animate: true,
       containerClass: BG_CLASS,
-      className: 'text-[#f5f5f5] prose-invert prose-strong:text-[#f5f5f5]',
-      content: (
-        <div className='text-[#f5f5f5]'>
-          <h1 className='text-4xl'>
-            <strong>Instructions</strong>
-          </h1>
-          <br />
-          <p>
-            You will see a cloud of dots like the one below. Some dots move together in one
-            direction, while the rest move randomly.
+      theme: 'dark' as const,
+      nextKey: false,
+      backKey: false,
+      slides: [
+        <div className='text-[#f5f5f5] flex flex-col items-center gap-6'>
+          <h1 className='text-4xl font-bold'>Instructions</h1>
+          <p className='max-w-lg text-center'>
+            You will see a cloud of moving dots. Some dots move together in one direction, while the
+            rest move randomly.
           </p>
-          <div className='flex justify-center my-4'>
-            <RDKCanvas
-              width={300}
-              height={300}
-              apertureWidth={250}
-              apertureHeight={250}
-              apertureShape='circle'
-              coherence={0.5}
-              direction={90}
-              dotCount={NDOTS / 1.5}
-              speed={DOTSPEED / 2}
-              dotRadius={2}
-              dotColor='white'
-              dotLifetime={DOTLIFETIME}
-              noiseMovement={NOISE_MOVEMENT}
-              backgroundColor='#21294b'
-              showBorder
-              borderColor='white'
-              reinsertMode='opposite'
-            />
-          </div>
-          <p>
+        </div>,
+
+        <div className='text-[#f5f5f5] flex flex-col items-center gap-4'>
+          <p>The red dots below are the ones moving together:</p>
+          <DemoRDK coherentDotColor='red' dotLifetime={-1} />
+        </div>,
+
+        <div className='text-[#f5f5f5] flex flex-col items-center gap-4'>
+          <p>In the real task, the dots will all be white:</p>
+          <DemoRDK dotLifetime={-1} />
+        </div>,
+
+        <div className='text-[#f5f5f5] flex flex-col items-center gap-4'>
+          <p>In the real task, all dots look the same:</p>
+          <DemoRDK />
+        </div>,
+
+        <div className='text-[#f5f5f5] flex flex-col items-center gap-6'>
+          <p className='max-w-md text-center'>
             Your job is to decide whether the dots are moving <strong>left</strong> or{' '}
             <strong>right</strong>.
           </p>
-          <p>
+          <p className='max-w-md text-center'>
             Press <strong>{keyLabel(KEY_LEFT)}</strong> if dots move left,{' '}
             <strong>{keyLabel(KEY_RIGHT)}</strong> if dots move right.
           </p>
-        </div>
-      ),
+        </div>,
+
+        <PracticeSlide direction='right' />,
+        <PracticeSlide direction='left' />,
+      ],
     },
   },
 
@@ -180,7 +246,7 @@ export default function Experiment() {
     <ExperimentRunner
       config={config}
       timeline={experiment}
-      components={{ RandomDotKinematogram, Feedback, BDMReward }}
+      components={{ RandomDotKinematogram, Feedback, BDMReward, Tutorial }}
     />
   );
 }
