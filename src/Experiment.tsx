@@ -1,9 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, ComponentProps } from 'react';
-import { ExperimentRunner, ExperimentConfig, getParam, shuffle } from '@adriansteffan/reactive';
-import { RandomDotKinematogram, RDKCanvas, RDKProps, NoiseMovement } from './RandomDotKinematogram';
+import { ExperimentRunner, ExperimentConfig, getParam, shuffle, RandomDotKinematogram, RDKCanvas, RDKProps, NoiseMovement, Tutorial, useTutorialSlide } from '@adriansteffan/reactive';
 import { Feedback, BDMReward } from './feedback';
-import { Tutorial, useTutorialSlide } from './Tutorial';
 
 const config: ExperimentConfig = { showProgressBar: false };
 
