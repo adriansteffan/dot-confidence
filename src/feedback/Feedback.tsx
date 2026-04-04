@@ -1,7 +1,35 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { BaseComponentProps } from '@adriansteffan/reactive';
+import { BaseComponentProps, registerFlattener, registerSimulation, uniform } from '@adriansteffan/reactive';
 import { PickingBar, AnswerCard, SubmitButton, ContinuePrompt, FeedbackContainer } from './shared';
+
+registerFlattener('Feedback', 'feedback');
+
+registerSimulation('Feedback', (trialProps, _experimentState, simulators, participant) => {
+  const isUserCorrect = trialProps.isUserCorrect ?? false;
+  const result = simulators.pickConfidence(trialProps, participant);
+  const pickingRT = result.value.pickingRT;
+  const continueRT = uniform(200, 700);
+
+  const data: Record<string, unknown> = {
+    isUserCorrect,
+    totalRT: pickingRT + continueRT,
+  };
+  if (trialProps.showConfidencePicker) {
+    data.userConfidence = result.value.userConfidence;
+    data.pickingRT = pickingRT;
+  }
+  return {
+    responseData: data,
+    participantState: result.participantState,
+    duration: pickingRT + continueRT,
+  };
+}, {
+  pickConfidence: (_trialProps: any, participant: any) => ({
+    value: { userConfidence: Math.floor(uniform(0, 101)), pickingRT: uniform(1000, 4000) },
+    participantState: participant,
+  }),
+});
 
 export interface FeedbackProps extends BaseComponentProps {
   isUserCorrect: boolean;

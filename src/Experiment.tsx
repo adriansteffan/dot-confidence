@@ -1,6 +1,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, ComponentProps } from 'react';
-import { ExperimentRunner, ExperimentConfig, getParam, shuffle, RandomDotKinematogram, RDKCanvas, RDKProps, NoiseMovement, Tutorial, useTutorialSlide } from '@adriansteffan/reactive';
+import {
+  ExperimentRunner,
+  ExperimentConfig,
+  getParam,
+  shuffle,
+  RandomDotKinematogram,
+  RDKCanvas,
+  RDKProps,
+  NoiseMovement,
+  Tutorial,
+  useTutorialSlide,
+  simulateDDMTrial,
+  mapDDMChoice,
+  uniform,
+} from '@adriansteffan/reactive';
 import { Feedback, BDMReward } from './feedback';
 
 const config: ExperimentConfig = { showProgressBar: false };
@@ -12,7 +26,7 @@ const STIMDUR = getParam('stimdur', 2000, 'number', 'Stimulus duration in millis
 const CONDITIONS = ['control', 'simple', 'bdm'] as const;
 const CONDITION = getParam(
   'condition',
-  CONDITIONS[Math.floor(Math.random() * CONDITIONS.length)],
+  CONDITIONS[Math.floor(uniform(0, CONDITIONS.length))],
   'string',
   'Feedback condition (control, simple, bdm)',
 );
@@ -116,9 +130,59 @@ const PracticeSlide = ({ direction }: { direction: 'left' | 'right' }) => {
   );
 };
 
+// --- Simulators ---
+
+const BASE_BOUNDARY = 0.75;
+const BOUNDARY_MULTIPLIER: Record<string, number> = { control: 1.0, simple: 1.05, bdm: 1.1 };
+const CONFIDENCE_BIAS: Record<string, number> = { control: 0, simple: 7, bdm: 2 };
+const CONFIDENCE_NOISE: Record<string, number> = { control: 0, simple: 5, bdm: 3 };
+
+const rdkRespond = (trialProps: any, participant: any) => {
+  const boundaries = BASE_BOUNDARY * (BOUNDARY_MULTIPLIER[CONDITION] ?? 1.0);
+  const ddm = simulateDDMTrial({
+    driftRate: { type: 'normal', mean: 0.005 * (trialProps.coherence ?? 0.5), sd: 0.0012 },
+    boundaries,
+    startingPoint: 0,
+    noiseLevel: 0.02,
+    sensoryDelay: { type: 'uniform', min: 150, max: 250 },
+    motorDelay: { type: 'uniform', min: 130, max: 210 },
+    timeLimit: trialProps.duration > 0 ? trialProps.duration : 10000,
+    stimOffset: trialProps.stimulusDuration ?? trialProps.duration ?? 2000,
+    postStimStrategy: { type: 'continue', residualDrift: 0.3, noiseMultiplier: 1.5 },
+  });
+  const key = mapDDMChoice(ddm.choice, trialProps.validKeys, trialProps.correctResponse);
+
+  // Map 1/RT to confidence in [50, 100], with condition-dependent bias.
+  const rt = ddm.rt;
+  const rtFast = 300;
+  const rtSlow = (trialProps.stimulusDuration ?? trialProps.duration ?? 1500) + 500;
+  const speed = 1 / rt;
+  const normalized = (speed - 1 / rtSlow) / (1 / rtFast - 1 / rtSlow);
+  const clamped = Math.max(0, Math.min(1, normalized));
+  const bias = CONFIDENCE_BIAS[CONDITION] ?? 0;
+  const noise = CONFIDENCE_NOISE[CONDITION] ?? 5;
+  const lastConf = Math.max(
+    50,
+    Math.min(100, Math.round(50 + 50 * clamped + bias + uniform(-noise, noise))),
+  );
+
+  return {
+    value: { rt: key ? rt : null, response: key },
+    participantState: { ...participant, lastConf },
+  };
+};
+
+const pickConfidence = (_trialProps: any, participant: any) => ({
+  value: {
+    userConfidence: participant.lastConf ?? 75,
+    pickingRT: uniform(1000, 4000),
+  },
+  participantState: participant,
+});
+
 const trialsPerCoherence = Math.floor(NTRIALS / COHERENCES.length);
 
-const experiment = [
+export const experiment = [
   {
     name: 'tutorial',
     type: 'Tutorial',
@@ -211,6 +275,7 @@ const experiment = [
         correctResponse,
         responseHint: `Press ${keyLabel(KEY_LEFT)} or ${keyLabel(KEY_RIGHT)} to respond`,
       } as RDKProps,
+      simulators: { respond: rdkRespond },
     },
     {
       name: `feedback_${i}`,
@@ -221,13 +286,14 @@ const experiment = [
         liveLotteryFill: false,
         fastMode: true,
       }),
+      simulators: { pickConfidence },
     },
   ]),
 
   {
     name: 'upload',
     type: 'Upload',
-    props: { autoUpload: false },
+    props: { autoUpload: false, sessionData: { condition: CONDITION } },
   },
   {
     name: 'end',
@@ -245,6 +311,12 @@ export default function Experiment() {
       config={config}
       timeline={experiment}
       components={{ RandomDotKinematogram, Feedback, BDMReward, Tutorial }}
+      hybridParticipant={{ id: 0 }}
     />
   );
 }
+
+export const simulationConfig = {
+  seed: 42,
+  participants: Array.from({ length: 200 }, (_, i) => ({ id: i })),
+};

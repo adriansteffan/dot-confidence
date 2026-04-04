@@ -2,7 +2,40 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, LayoutGroup, useMotionValue, useTransform, animate } from 'motion/react';
-import { BaseComponentProps, shuffle } from '@adriansteffan/reactive';
+import { BaseComponentProps, shuffle, registerFlattener, registerSimulation, uniform } from '@adriansteffan/reactive';
+
+registerFlattener('BDMReward', 'feedback');
+
+registerSimulation('BDMReward', (trialProps, _experimentState, simulators, participant) => {
+  const isUserCorrect = trialProps.isUserCorrect ?? false;
+  const result = simulators.pickConfidence(trialProps, participant);
+  const userConfidence = result.value.userConfidence;
+  const pickingRT = result.value.pickingRT;
+
+  const lotteryValue = Math.floor(uniform(0, 101));
+  const source = userConfidence > lotteryValue ? 'task' : 'lottery';
+  const wonReward = source === 'task' ? isUserCorrect : uniform(0, 1) < lotteryValue / 100;
+  const animationDuration = trialProps.animationDuration ?? 2500;
+
+  return {
+    responseData: {
+      userConfidence,
+      isUserCorrect,
+      lotteryValue,
+      source,
+      wonReward,
+      pickingRT,
+      totalRT: pickingRT + animationDuration + 500,
+    },
+    participantState: result.participantState,
+    duration: pickingRT + animationDuration + 500,
+  };
+}, {
+  pickConfidence: (_trialProps: any, participant: any) => ({
+    value: { userConfidence: Math.floor(uniform(0, 101)), pickingRT: uniform(1000, 4000) },
+    participantState: participant,
+  }),
+});
 import {
   BORDER,
   SHADOW,

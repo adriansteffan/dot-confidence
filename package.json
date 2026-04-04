@@ -44,6 +44,7 @@
     }
   },
   "scripts": {
+    "simulate": "npx tsx simulate.ts",
     "dev": "vite",
     "backend": "npm run dev --prefix backend",
     "dev:all": "concurrently -n \"FRONT,BACK\" -c \"blue,green\" \"npm run dev\" \"npm run backend\"",
@@ -61,7 +62,7 @@
   },
   "dependencies": {
     "@adriansteffan/immersive-mode": "0.0.1",
-    "@adriansteffan/reactive": "^0.1.4",
+    "@adriansteffan/reactive": "^0.1.7",
     "@capacitor/android": "^7.0.1",
     "@capacitor/core": "^7.0.1",
     "@capacitor/filesystem": "^7.0.0",
