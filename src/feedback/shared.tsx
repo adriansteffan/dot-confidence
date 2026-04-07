@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'motion/react';
-import { shuffle } from '@adriansteffan/reactive';
+import { shuffle, useTheme, t, DARK_BG_CLASS } from '@adriansteffan/reactive';
 
 export const BORDER = 'border-4 border-black';
 export const SHADOW = '6px 6px 0px #000';
@@ -194,18 +194,20 @@ export const ContinuePrompt = ({ className = 'mt-8' }: { className?: string }) =
 
 export const FeedbackContainer = ({
   children,
-  containerClass = 'neo-grid-bg',
+  containerClass,
 }: {
   children: React.ReactNode;
   containerClass?: string;
-}) => (
-  <div
-    className={`${containerClass} min-h-screen flex items-center justify-center p-8 select-none`}
-    style={{ color: '#f5f5f5' }}
-  >
-    <div className='flex flex-col items-center w-full max-w-2xl'>{children}</div>
-  </div>
-);
+}) => {
+  const theme = useTheme();
+  return (
+    <div
+      className={`${containerClass ?? DARK_BG_CLASS} min-h-screen flex items-center justify-center p-8 select-none ${t(theme).text}`}
+    >
+      <div className='flex flex-col items-center w-full max-w-2xl'>{children}</div>
+    </div>
+  );
+};
 
 interface ChipPosition {
   row: number;

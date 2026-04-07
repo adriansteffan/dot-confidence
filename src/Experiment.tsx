@@ -11,38 +11,10 @@ import {
   uniform,
 } from '@adriansteffan/reactive';
 import { Feedback, BDMReward } from './feedback';
-import { ContrastDark } from 'survey-core/themes';
 import { getTutorialSlides, getBDMRetrySlides, BDMSummary } from './tutorial';
-import {
-  BG_CLASS,
-  NDOTS,
-  DOTSPEED,
-  DOTLIFETIME,
-  NOISE_MOVEMENT,
-  KEY_LEFT,
-  KEY_RIGHT,
-  keyLabel,
-} from './rdk';
+import { NDOTS, DOTSPEED, DOTLIFETIME, NOISE_MOVEMENT, KEY_LEFT, KEY_RIGHT, keyLabel } from './rdk';
 
-const config: ExperimentConfig = { showProgressBar: false };
-
-// Shared props for Text components on dark background
-const TEXT_CLASS =
-  '!text-[#f5f5f5] prose-headings:!text-[#f5f5f5] prose-strong:!text-[#f5f5f5] prose-li:!text-[#f5f5f5]';
-
-// Shared props for Text components on dark background
-const TEXT_PROPS = {
-  containerClass: BG_CLASS,
-  className: TEXT_CLASS,
-  buttonText: 'Continue',
-};
-
-// Centered variant — for short messages (breaks, practice end) that look better vertically centered
-const TEXT_PROPS_CENTERED = {
-  containerClass: `${BG_CLASS} flex items-center justify-center`,
-  className: TEXT_CLASS,
-  buttonText: 'Continue',
-};
+const config: ExperimentConfig = { showProgressBar: false, theme: 'dark' as const };
 
 const NTRIALS = getParam('ntrials', 50, 'number', 'Number of trials to show');
 const NPRACTICE = getParam('npractice', 10, 'number', 'Number of practice trials');
@@ -194,7 +166,6 @@ function generateTrialBlock(
             showConfidencePicker: CONDITION === 'simple',
             liveLotteryFill: false,
             fastMode,
-            ...(CONDITION === 'control' && { containerClass: 'bg-[#21294b]' }),
           }),
           simulators: { pickConfidence },
         },
@@ -205,11 +176,11 @@ function generateTrialBlock(
           name: `${prefix}_break_${i}`,
           type: 'Text',
           props: {
-            ...TEXT_PROPS_CENTERED,
+            centered: true,
             allowedKeys: [' ', 'Enter'],
             buttonText: '',
             content: (
-              <div className='flex flex-col gap-5 leading-relaxed text-[#f5f5f5]'>
+              <div className='flex flex-col gap-5 leading-relaxed'>
                 <p>Take a short break.</p>
                 <p>
                   Place your fingers on{' '}
@@ -253,11 +224,10 @@ export const experiment = [
     name: 'welcome',
     type: 'Text',
     props: {
-      ...TEXT_PROPS,
       animate: true,
       content: (
-        <div className='flex flex-col gap-5 leading-relaxed text-[#f5f5f5]'>
-          <h1 className='text-3xl font-bold text-[#f5f5f5]'>Welcome!</h1>
+        <div className='flex flex-col gap-5 leading-relaxed'>
+          <h1 className='text-3xl font-bold'>Welcome!</h1>
           <p>
             Thank you for your interest in our study. On the next page you will find important
             information about the study and your participation. Please read it carefully before
@@ -272,12 +242,11 @@ export const experiment = [
     name: 'consent',
     type: 'Text',
     props: {
-      ...TEXT_PROPS,
       animate: true,
       buttonText: 'I agree',
       content: (
-        <div className='flex flex-col gap-5 leading-relaxed text-[#f5f5f5]'>
-          <h2 className='text-2xl font-bold text-[#f5f5f5]'>Participant Information</h2>
+        <div className='flex flex-col gap-5 leading-relaxed'>
+          <h2 className='text-2xl font-bold'>Participant Information</h2>
           <p>[Some legal consent talk here]</p>
           <p>
             If you agree, please click the button below. Otherwise please go back to Prolific and
@@ -292,11 +261,10 @@ export const experiment = [
     name: 'enter_fullscreen',
     type: 'EnterFullscreen',
     props: {
-      ...TEXT_PROPS,
       animate: true,
       buttonText: 'Enter Fullscreen Mode',
       content: (
-        <p className='text-[#f5f5f5]'>
+        <p>
           This experiment works best in fullscreen mode. <br />
           Please click the button below to continue.
         </p>
@@ -308,10 +276,9 @@ export const experiment = [
     name: 'overview',
     type: 'Text',
     props: {
-      ...TEXT_PROPS,
       animate: true,
       content: (
-        <div className='flex flex-col gap-5 leading-relaxed text-[#f5f5f5]'>
+        <div className='flex flex-col gap-5 leading-relaxed'>
           <p>
             Thank you for participating in this study.
             {CONDITION === 'bdm'
@@ -354,8 +321,6 @@ export const experiment = [
         name: 'tutorial',
         type: 'Tutorial',
         props: {
-          containerClass: BG_CLASS,
-          theme: 'dark' as const,
           nextKey: ' ',
           backKey: false,
           slides: getTutorialSlides(CONDITION),
@@ -377,7 +342,6 @@ export const experiment = [
               name: 'tutorial_retry',
               type: 'Tutorial',
               props: {
-                containerClass: BG_CLASS,
                 theme: 'dark' as const,
                 nextKey: ' ',
                 backKey: false,
@@ -397,7 +361,6 @@ export const experiment = [
           name: 'pre_quiz_summary',
           type: 'Text',
           props: {
-            ...TEXT_PROPS,
             animate: true,
             content: <BDMSummary maxWidth='max-w-lg' />,
           },
@@ -407,8 +370,6 @@ export const experiment = [
           name: 'quiz',
           type: 'Quest',
           props: {
-            theme: ContrastDark,
-            containerClass: BG_CLASS,
             surveyJson: {
               showQuestionNumbers: true,
               pages: [
@@ -516,9 +477,9 @@ export const experiment = [
               name: 'quiz_retry',
               type: 'Text',
               props: {
-                ...TEXT_PROPS,
+                centered: true,
                 content: (
-                  <p className='leading-relaxed text-[#f5f5f5]'>
+                  <p className='leading-relaxed'>
                     Some of your answers were incorrect. This suggests you may not have fully
                     understood the reward procedure yet. You will now go through the instructions
                     and practice again before retaking the quiz.
@@ -536,9 +497,9 @@ export const experiment = [
     name: 'practice_end',
     type: 'Text',
     props: {
-      ...TEXT_PROPS_CENTERED,
+      centered: true,
       content: (
-        <div className='flex flex-col gap-2 text-[#f5f5f5]'>
+        <div className='flex flex-col gap-2'>
           <h1>Practice complete!</h1>
           <p className='leading-relaxed'>The real experiment will now begin.</p>
         </div>
@@ -552,7 +513,7 @@ export const experiment = [
     name: 'upload',
     type: 'Upload',
     props: (_data: any, store: any) => ({
-      ...TEXT_PROPS_CENTERED,
+      centered: true,
       autoUpload: false,
       sessionData: { quizAttempts: store?.quizAttempts ?? 0 },
     }),
@@ -585,5 +546,5 @@ export default function Experiment() {
 
 export const simulationConfig = {
   seed: 42,
-  participants: Array.from({ length: 100 }, (_, i) => ({ id: i })),
+  participants: Array.from({ length: 200 }, (_, i) => ({ id: i })),
 };

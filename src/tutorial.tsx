@@ -19,13 +19,13 @@ const BAR_LAYOUT_ID = 'tutorial-bar';
 const CARD_LAYOUT_ID = 'tutorial-card';
 const LOTTERY_LAYOUT_ID = 'tutorial-lottery';
 
-const SLIDE_CONTAINER = 'text-[#f5f5f5] flex flex-col items-center gap-4 w-full max-w-2xl';
+const SLIDE_CONTAINER = 'flex flex-col items-center gap-4 w-full max-w-2xl';
 
 /** BDM summary content — used as a tutorial slide and repeated as a Text trial before the quiz */
 export const BDMSummary = ({ maxWidth = 'max-w-xl' }: { maxWidth?: string } = {}) => (
-  <div className={`${maxWidth} flex flex-col gap-4 leading-relaxed text-[#f5f5f5]`}>
-    <h2 className='text-2xl font-bold text-[#f5f5f5]'>Summary</h2>
-    <ul className='list-disc pl-5 flex flex-col gap-3 text-[#f5f5f5]'>
+  <div className={`${maxWidth} flex flex-col gap-4 leading-relaxed`}>
+    <h2 className='text-2xl font-bold'>Summary</h2>
+    <ul className='list-disc pl-5 flex flex-col gap-3'>
       <li>In the moving dots task, you will make a choice about the direction of the dots.</li>
       <li>
         You will provide a confidence rating as accurately as you can in the form of a probability
@@ -96,7 +96,7 @@ const PracticeSlide = ({ direction }: { direction: 'left' | 'right' }) => {
   }, [correct, unlock]);
 
   return (
-    <div className='text-[#f5f5f5] flex flex-col items-center gap-4'>
+    <div className='flex flex-col items-center gap-4'>
       <p>
         Which direction are the dots generally moving? Press{' '}
         <KeyBadge>{keyLabel(KEY_LEFT)}</KeyBadge> or <KeyBadge>{keyLabel(KEY_RIGHT)}</KeyBadge> on
@@ -122,7 +122,7 @@ const ConfidenceIntroSlide = () => {
   const [confidence, setConfidence] = useState(50);
 
   return (
-    <div className='text-[#f5f5f5] flex flex-col items-center gap-10 w-full max-w-2xl'>
+    <div className='flex flex-col items-center gap-10 w-full max-w-2xl'>
       <p className='max-w-lg leading-relaxed'>
         After each trial, you will rate how confident you are that you chose the correct direction
         on a scale of 0-100. 100% means you are certain you got it right, 0% means you are certain
@@ -162,7 +162,7 @@ const ConfidencePracticeSlide = ({
   }, [touched, dragging, inRange, unlocked, unlock]);
 
   return (
-    <div className='text-[#f5f5f5] flex flex-col items-center gap-10 w-full max-w-2xl'>
+    <div className='flex flex-col items-center gap-10 w-full max-w-2xl'>
       <p className='max-w-lg leading-relaxed'>{prompt}</p>
       <div className='w-full flex flex-col items-center'>
         <PickingBar
@@ -211,7 +211,7 @@ const LoopingAnswerReveal = () => {
   }, []);
 
   return (
-    <div className='text-[#f5f5f5] flex flex-col items-center gap-16'>
+    <div className='flex flex-col items-center gap-16'>
       <motion.div
         key={state.step}
         initial={state.revealed ? CARD_REVEAL_INITIAL : undefined}
@@ -431,7 +431,7 @@ const TrialOrderDemo = () => {
   }, []);
 
   return (
-    <div className='text-[#f5f5f5] flex flex-col items-center gap-14'>
+    <div className='flex flex-col items-center gap-14'>
       <p className='max-w-lg leading-relaxed'>
         You will play all trials in the exact same order: <br />
         Moving Dots, Confidence Voting, Reward Procedure.
@@ -499,7 +499,7 @@ const TrialOrderDemo = () => {
 };
 
 const StartSlide = () => (
-  <div className='text-[#f5f5f5] flex flex-col items-center'>
+  <div className='flex flex-col items-center'>
     <div className='max-w-lg flex flex-col gap-3'>
       <p className='leading-loose'>If you are ready, we can start with a few practice rounds.</p>
       <p className='leading-loose'>
@@ -517,7 +517,7 @@ const RDKSlide = ({
   children: ReactNode;
   rdkProps?: Partial<React.ComponentProps<typeof DemoRDK>>;
 }) => (
-  <div className='text-[#f5f5f5] flex flex-col items-center gap-4'>
+  <div className='flex flex-col items-center gap-4'>
     <div className='h-20 flex items-center'>
       <p className='max-w-lg leading-relaxed'>{children}</p>
     </div>
@@ -535,7 +535,7 @@ const rdkSlides: ReactNode[] = [
 
   <RDKSlide>And to make it a bit harder, the dots will get continuously replaced:</RDKSlide>,
 
-  <div className='text-[#f5f5f5] flex flex-col items-center gap-6'>
+  <div className='flex flex-col items-center gap-6'>
     <p className='max-w-md leading-relaxed'>
       Your job is to decide whether the majority of the dots is moving left or right.
     </p>
@@ -653,7 +653,7 @@ const bdmOnlySlides: ReactNode[] = [
     </p>
   </FullBDMDemo>,
 
-  <div className='text-[#f5f5f5] flex flex-col items-center gap-6'>
+  <div className='flex flex-col items-center gap-6'>
     <div className='max-w-lg flex flex-col gap-5 leading-relaxed'>
       <p>
         The software always picks whichever method gives you the better chance of winning based on
@@ -671,7 +671,7 @@ const bdmOnlySlides: ReactNode[] = [
 
   <TrialOrderDemo />,
 
-  <div className='text-[#f5f5f5] flex flex-col items-center'>
+  <div className='flex flex-col items-center'>
     <BDMSummary />
   </div>,
 

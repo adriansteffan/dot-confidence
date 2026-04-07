@@ -1,7 +1,6 @@
 import { ComponentProps } from 'react';
 import { getParam, RDKCanvas, NoiseMovement } from '@adriansteffan/reactive';
 
-export const BG_CLASS = 'neo-grid-bg';
 
 export const NDOTS = getParam('ndots', 200, 'number', 'Number of dots to display');
 export const DOTLIFETIME = getParam('dotlifetime', 100, 'number', 'Dot lifetime in milliseconds');

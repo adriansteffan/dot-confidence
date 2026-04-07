@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LayoutGroup } from 'motion/react';
-import { BaseComponentProps, registerFlattener, registerSimulation, uniform } from '@adriansteffan/reactive';
+import { BaseComponentProps, registerFlattener, registerSimulation, uniform, useTheme, t, DARK_BG_CLASS } from '@adriansteffan/reactive';
 import {
   PickingBar,
   SubmitButton,
@@ -103,10 +103,11 @@ export const BDMReward = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [bdmState.isFeedback, next, confidence, isUserCorrect, greenChipPercent, bdmState.source, bdmState.wonReward]);
 
+  const theme = useTheme();
+
   return (
     <div
-      className='neo-grid-bg min-h-screen flex items-center justify-center p-8 select-none'
-      style={{ color: '#f5f5f5' }}
+      className={`${DARK_BG_CLASS} min-h-screen flex items-center justify-center p-8 select-none ${t(theme).text}`}
     >
       <LayoutGroup>
         <div className='flex flex-col items-center w-full max-w-2xl'>
