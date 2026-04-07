@@ -21,6 +21,40 @@ const LOTTERY_LAYOUT_ID = 'tutorial-lottery';
 
 const SLIDE_CONTAINER = 'text-[#f5f5f5] flex flex-col items-center gap-4 w-full max-w-2xl';
 
+/** BDM summary content — used as a tutorial slide and repeated as a Text trial before the quiz */
+export const BDMSummary = ({ maxWidth = 'max-w-xl' }: { maxWidth?: string } = {}) => (
+  <div className={`${maxWidth} flex flex-col gap-4 leading-relaxed text-[#f5f5f5]`}>
+    <h2 className='text-2xl font-bold text-[#f5f5f5]'>Summary</h2>
+    <ul className='list-disc pl-5 flex flex-col gap-3 text-[#f5f5f5]'>
+      <li>In the moving dots task, you will make a choice about the direction of the dots.</li>
+      <li>
+        You will provide a confidence rating as accurately as you can in the form of a probability
+        of your decision being correct in percent (0 to 100%).
+      </li>
+      <li>The software will draw a number between 0 and 100.</li>
+      <li>
+        If your reported confidence is higher than the number, the software will base your reward on
+        whether your choice was correct (reward for a correct choice, nothing for an incorrect
+        choice).
+      </li>
+      <li>
+        If the random number is higher than your confidence, then your reward will be based on the
+        lottery. The lottery will be filled with 100 chips and the random number will determine how
+        many of those are winning chips. A chip is randomly drawn and if it is a winning chip, you
+        win the reward. If it is a losing chip, you get nothing.
+      </li>
+      <li>
+        It is important that you provide accurate confidence ratings because this will ensure that
+        your reward is always decided by the method with the better odds.
+      </li>
+      <li>
+        At the end of the experiment, three rounds will be chosen at random to determine your bonus
+        payment.
+      </li>
+    </ul>
+  </div>
+);
+
 const FeedbackText = ({ correct }: { correct: boolean }) => (
   <motion.p
     key={correct ? 'correct' : 'incorrect'}
@@ -231,7 +265,7 @@ const BDMDemoSlide = ({
       {children}
       <ComparingBar
         key={key}
-        layoutId={BAR_LAYOUT_ID}
+        layoutId={hideIndicator ? undefined : BAR_LAYOUT_ID}
         userConfidence={userConfidence}
         lotteryValue={currentLottery}
         animationDuration={animationDuration}
@@ -493,8 +527,8 @@ const RDKSlide = ({
 
 const rdkSlides: ReactNode[] = [
   <RDKSlide rdkProps={{ coherentDotColor: 'red', dotLifetime: -1 }}>
-    In the following trials you will see clouds of moving dots. Some dots move together in one
-    direction, while the rest move randomly.
+    In the first trial of each round you will see clouds of moving dots. Some dots move together in
+    one direction, while the rest move randomly.
   </RDKSlide>,
 
   <RDKSlide rdkProps={{ dotLifetime: -1 }}>In our trials, all dots will all be white:</RDKSlide>,
@@ -518,7 +552,7 @@ const rdkSlides: ReactNode[] = [
 const confidenceSlides: ReactNode[] = [
   <ConfidenceIntroSlide />,
   <ConfidencePracticeSlide
-    prompt='Imagine this scenario: In the previous trial with the moving dots the direction was hard to see, but you are think you barely saw dots moving left and hence pressed the left key. Where would you place your confidence?'
+    prompt='Imagine this scenario: In the previous trial with the moving dots the direction was hard to see, but you think you barely saw dots moving left and hence pressed the left key. Where would you place your confidence?'
     acceptRange={[55, 80]}
   />,
   <ConfidencePracticeSlide
@@ -536,10 +570,8 @@ const simpleSlides: ReactNode[] = [
   <StartSlide />,
 ];
 
-const bdmSlides: ReactNode[] = [
-  ...rdkSlides,
-  ...confidenceSlides,
-
+/** BDM-specific slides — exported separately so quiz retry can skip RDK/confidence slides */
+const bdmOnlySlides: ReactNode[] = [
   // Static bar — long duration prevents loop restart from causing a flash
   <BDMDemoSlide userConfidence={60} lotteryValue={0} animationDuration={60000} hideIndicator>
     <p className='max-w-lg leading-relaxed'>
@@ -560,7 +592,8 @@ const bdmSlides: ReactNode[] = [
     randomizeLanding
   >
     <p className='max-w-lg leading-relaxed'>
-      First, the computer will pick a random number between 0 and 100.
+      First, the computer will pick a random number between 0 and 100. Each number is equally
+      likely.
     </p>
   </BDMDemoSlide>,
 
@@ -601,7 +634,8 @@ const bdmSlides: ReactNode[] = [
     predeterminedOutcome={true}
   >
     <p className='max-w-lg leading-relaxed'>
-      If you pick a high confidence and the number goes above it, you gain a strong lottery.
+      When your confidence is high and the lottery is chosen, you get a strong lottery with good
+      winning chances.
     </p>
   </FullBDMDemo>,
 
@@ -613,16 +647,43 @@ const bdmSlides: ReactNode[] = [
     predeterminedOutcome={false}
   >
     <p className='max-w-lg leading-relaxed'>
-      If you are less confident, the lotteries can also turn out weaker. But remember, when you are
-      really unsure that your answer is right, even a weak lottery has a chance to give you a
-      reward!
+      When your confidence is low, the lottery will be weaker. But that is okay: when you are
+      genuinely unsure, even a small chance from the lottery is better than relying on an answer you
+      do not trust.
     </p>
   </FullBDMDemo>,
 
+  <div className='text-[#f5f5f5] flex flex-col items-center gap-6'>
+    <div className='max-w-lg flex flex-col gap-5 leading-relaxed'>
+      <p>
+        The software always picks whichever method gives you the better chance of winning based on
+        your reported confidence. This means reporting your true confidence is always your best
+        strategy.
+      </p>
+      <p>
+        If you accidentally report the wrong confidence, the software might pick a method that is
+        worse for you. For example, if you are 90% sure your answer is correct but accidentally
+        enter 50%, the software might choose the lottery (because it looks better than 50%) even
+        though basing the reward on your answer would have given you a 90% chance.
+      </p>
+    </div>
+  </div>,
+
   <TrialOrderDemo />,
+
+  <div className='text-[#f5f5f5] flex flex-col items-center'>
+    <BDMSummary />
+  </div>,
 
   <StartSlide />,
 ];
+
+const bdmSlides: ReactNode[] = [...rdkSlides, ...confidenceSlides, ...bdmOnlySlides];
+
+/** BDM-only tutorial slides for quiz retry (skips RDK and confidence explanations) */
+export function getBDMRetrySlides(): ReactNode[] {
+  return bdmOnlySlides;
+}
 
 export function getTutorialSlides(condition: string): ReactNode[] {
   switch (condition) {
